@@ -1,4 +1,4 @@
--- Long running query details
+--# Long running query details
 
 SELECT
     s.sid,
@@ -29,7 +29,50 @@ ORDER BY
     s.last_call_et DESC;
 
 
--- Check historical execution of sql_id with plan_hash_value
+
+--# Check AWR Snapshot take intervals and retention 
+
+-- Check retention and interval
+SELECT
+    snap_interval,      -- Frequency of AWR snapshots (e.g., every 1 hour)
+    retention           -- How long snapshots are retained (e.g., 8 days)
+FROM
+    dba_hist_wr_control;
+
+**Note:
+Default Settings (Oracle):
+  - Default Interval is every 1 hour (`+00000 01:00:00.0`).  
+  - In Oracle 10g/11g, the default retention is 7 days.  
+  - In Oracle 12c/19c/21c, the default retention is 8 days.
+  - Snapshots older than the retention period are automatically purged by the Oracle maintenance tasks
+
+-- Check AWR usage
+SELECT
+    SUM(space_used) / 1024 / 1024 AS space_used_mb
+FROM
+    dba_hist_snapshot;
+
+-- eg of changing retaintion and interval
+
+BEGIN
+  DBMS_WORKLOAD_REPOSITORY.MODIFY_SNAPSHOT_SETTINGS(
+    retention  => 14 * 1440,    -- 14 days (in minutes)
+    interval   => 30            -- 30 minutes
+  );
+END;
+/
+
+BEGIN
+  DBMS_WORKLOAD_REPOSITORY.MODIFY_SNAPSHOT_SETTINGS(
+    retention  => 11520,   -- 8 days (8*24*60 minutes)
+    interval   => 60        -- 60 minutes
+  );
+END;
+/
+
+
+
+--# Check historical execution of sql_id with plan_hash_value
 
 SELECT 
     h.begin_interval_time AS snapshot_start_time,
@@ -82,4 +125,5 @@ ORDER BY
     h.begin_interval_time;
 
 
+--
 
