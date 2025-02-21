@@ -65,10 +65,9 @@ END;
 /
 
 -- Check AWR usage
-SELECT
-    SUM(space_used) / 1024 / 1024 AS space_used_mb
-FROM
-    dba_hist_snapshot;
+SELECT occupant_desc, space_usage_kbytes 
+FROM v$sysaux_occupants 
+WHERE occupant_name LIKE '%AWR%';
 
 -- Check snapshots id with Time frame
 
