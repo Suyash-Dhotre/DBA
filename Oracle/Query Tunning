@@ -56,5 +56,30 @@ ORDER BY
     h.begin_interval_time;
 
 
+-- OR
+
+SELECT
+    h.begin_interval_time AS snapshot_start_time,
+    h.end_interval_time AS snapshot_end_time,
+    s.sql_id,
+    s.plan_hash_value,
+    s.executions_delta AS executions_in_snapshot,
+    ROUND(s.elapsed_time_delta / 1e6, 2) AS elapsed_time_seconds,  -- Rounded to 2 decimal places
+    ROUND(s.cpu_time_delta / 1e6, 2) AS cpu_time_seconds,          -- Rounded to 2 decimal places
+    ROUND(s.elapsed_time_delta / NULLIF(s.executions_delta, 0) / 1e6, 4) AS avg_elapsed_time_seconds
+    --, (h.end_interval_time - h.begin_interval_time) * 86400 AS snapshot_duration_seconds  -- Added snapshot duration
+FROM
+    dba_hist_sqlstat s
+JOIN
+    dba_hist_snapshot h
+    ON s.snap_id = h.snap_id
+    AND s.dbid = h.dbid
+    AND s.instance_number = h.instance_number
+WHERE
+    s.sql_id = '9qytqh2xab7hr'
+    AND h.begin_interval_time >= SYSDATE - 30  -- Optional: Filter by time window (e.g., last 30 days)
+ORDER BY
+    h.begin_interval_time;
+
 
 
