@@ -793,6 +793,19 @@ WHERE name = 'coe_<SQL_ID>_<PLAN_HASH_VALUE>';
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('<SQL_ID>', NULL, 'ADVANCED'));
 
 
-
-
+== ### Revision:
+|---------------------------|-------------------------------------------------------------------------|
+| Table/View                | Purpose                                                                 |
+|---------------------------|-------------------------------------------------------------------------|
+| v$session                 | Identifies active sessions and their SQL execution details.             |
+| v$sqlarea                 | Retrieves SQL execution statistics and SQL text for SQL statements.     |
+| v$sql_plan                | Provides execution plan details for SQL statements in the shared pool.  |
+| v$sqltext_with_newlines   | Retrieves SQL text with line breaks for SQL statements in the shared pool. |
+| dba_hist_sqlstat          | Provides historical SQL execution statistics from AWR snapshots.        |
+| dba_hist_sql_plan         | Stores historical execution plan details from AWR snapshots.           |
+| dba_hist_sqltext          | Retrieves historical SQL text from AWR snapshots.                      |
+| dba_hist_snapshot         | Contains AWR snapshot details, including start and end times.          |
+| dba_hist_wr_control       | Stores AWR settings, such as snapshot intervals and retention periods. |
+| dba_sql_profiles          | Lists SQL profiles created in the database.                            |
+|---------------------------|-------------------------------------------------------------------------|
 
