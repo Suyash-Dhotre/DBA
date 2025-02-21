@@ -806,5 +806,6 @@ SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('<SQL_ID>', NULL, 'ADVANCED'));
 | dba_hist_snapshot         | Contains AWR snapshot details, including start and end times.          |
 | dba_hist_wr_control       | Stores AWR settings, such as snapshot intervals and retention periods. |
 | dba_sql_profiles          | Lists SQL profiles created in the database.                            |
+| v$sysaux_occupants        | Space usage of components in SYSAUX TS                                  |
 |---------------------------|-------------------------------------------------------------------------|
 
