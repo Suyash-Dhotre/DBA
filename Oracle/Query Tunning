@@ -1,0 +1,60 @@
+-- Long running query details
+
+SELECT
+    s.sid,
+    s.serial#,
+    s.username,
+    s.status,
+    s.osuser,
+    s.machine,
+    s.program,
+    COALESCE(s.sql_id, 'NO SQL') AS sql_id,
+    q.plan_hash_value,  -- Added plan hash value
+    s.event,
+    s.logon_time,
+    ROUND((SYSDATE - s.logon_time) * 24 * 60, 2) AS minutes_running,
+    q.sql_text
+FROM
+    v$session s
+LEFT JOIN
+    v$sqlarea q
+ON
+    s.sql_id = q.sql_id
+WHERE
+    s.status = 'ACTIVE'
+    AND s.username IS NOT NULL
+    AND s.last_call_et > 60 * 10  -- Queries running for more than 10 minutes
+    AND s.program NOT LIKE '%ORACLE%'  -- Exclude Oracle internal processes
+ORDER BY
+    s.last_call_et DESC;
+
+
+-- Check historical execution of sql_id with plan_hash_value
+
+SELECT 
+    h.begin_interval_time AS snapshot_start_time,
+    h.end_interval_time AS snapshot_end_time,
+    s.sql_id,
+    s.plan_hash_value,
+    s.executions_delta AS executions_in_snapshot,
+    s.elapsed_time_delta / 1e6 AS elapsed_time_seconds,
+    s.cpu_time_delta / 1e6 AS cpu_time_seconds,
+    s.elapsed_time_delta / NULLIF(s.executions_delta, 0) / 1e6 AS avg_elapsed_time_seconds
+FROM 
+    dba_hist_sqlstat s
+JOIN 
+    dba_hist_snapshot h
+ON 
+    s.snap_id = h.snap_id
+AND 
+    s.dbid = h.dbid
+AND 
+    s.instance_number = h.instance_number
+WHERE 
+    s.sql_id = '9qytqh2xab7hr'
+ORDER BY 
+    h.begin_interval_time;
+
+
+
+
