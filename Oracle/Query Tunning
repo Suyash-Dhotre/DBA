@@ -46,18 +46,12 @@ Default Settings (Oracle):
   - In Oracle 12c/19c/21c, the default retention is 8 days.
   - Snapshots older than the retention period are automatically purged by the Oracle maintenance tasks
 
--- Check AWR usage
-SELECT
-    SUM(space_used) / 1024 / 1024 AS space_used_mb
-FROM
-    dba_hist_snapshot;
-
 -- eg of changing retaintion and interval
 
 BEGIN
   DBMS_WORKLOAD_REPOSITORY.MODIFY_SNAPSHOT_SETTINGS(
-    retention  => 14 * 1440,    -- 14 days (in minutes)
-    interval   => 30            -- 30 minutes
+    retention  => 11520,   -- 8 days (8*24*60 minutes)
+    interval   => 60        -- 60 minutes
   );
 END;
 /
@@ -69,6 +63,23 @@ BEGIN
   );
 END;
 /
+
+
+-- Check AWR usage
+SELECT
+    SUM(space_used) / 1024 / 1024 AS space_used_mb
+FROM
+    dba_hist_snapshot;
+
+-- Check snapshots id with Time frame
+
+SELECT snap_id,
+       TO_CHAR(begin_interval_time, 'YYYY-MM-DD HH24:MI:SS') AS begin_time,
+       TO_CHAR(end_interval_time, 'YYYY-MM-DD HH24:MI:SS') AS end_time
+FROM dba_hist_snapshot
+WHERE begin_interval_time >= TO_DATE('2025-02-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')
+  AND end_interval_time <= TO_DATE('2025-02-01 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
+ORDER BY snap_id;
 
 
 
