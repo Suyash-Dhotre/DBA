@@ -233,8 +233,16 @@ order by 5
 
 
 
---#
+--# Chnage the SQL PROFILE of SQL_ID Permanently.
+--------------------------------------------------------------------------------------------------------------------------
+--
+-- File Name : coe_xfr_sql_profile.sql
+-- I/P : Sql_id -- provide you all hash_plan_value -- provide hash_plan_value
+-- O/P : coe_xfr_sql_profile.log : Log of script execution (errors, warnings)
+--       coe_xfr_sql_profile_<SQL_ID>_<PLAN_HASH_VALUE>.sql : Transfer script. -- need to run this to set sql profile
 -- Transfer (copy) a SQL Profile from PDBx on CDBa into PDBy on CDBb
+--
+--------------------------------------------------------------------------------------------------------------------------
 SPO coe_xfr_sql_profile.log;
 SET DEF ON TERM OFF ECHO ON FEED OFF VER OFF HEA ON LIN 2000 PAGES 100 LONG 8000000 LONGC 800000 TRIMS ON TI OFF TIMI OFF SERVEROUT ON SIZE 1000000 NUMF "" SQLP SQL>;
 SET SERVEROUT ON SIZE UNL;
