@@ -135,7 +135,7 @@ ORDER BY
     h.begin_interval_time;
 
 
---# list of all PHVs their execution count and resource consumption
+--# list of all sql_ids with their execution count and resource consumption 
 ----------------------------------------------------------------------------------------
 --
 -- File name:   sqlflip1.sql
@@ -184,7 +184,7 @@ order by norm_stddev
 /
 
 
---# Compare multiple plan_hash_value for specific sql_id
+--# Compare multiple plan_hash_value for specific sql_id with all time usages
 ----------------------------------------------------------------------------------------
 --
 -- File name:   sqlflip2.sql
@@ -233,7 +233,44 @@ order by 5
 
 
 
---# Chnage the SQL PROFILE of SQL_ID Permanently.
+--# List all plan_hash_value for specific sql_id with detailed execution plan 
+
+-- Display all stored plans for a SQL_ID
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_AWR('<your_sql_id>'));
+
+-- Display a specific plan with advanced formatting
+SELECT * 
+FROM TABLE(
+  DBMS_XPLAN.DISPLAY_AWR(
+    sql_id        => 'gnjy0mn4y9pbm',
+    plan_hash_value => 2055843663,
+    format        => 'TYPICAL'
+  )
+);
+
+**Note: 
+- Format: Controls the level of detail in the output:
+  - BASIC: Minimal plan information.
+  - TYPICAL: Default (includes predicates, cost, etc.).
+  - ALL: Maximum detail (includes projections, aliases, etc.).
+  - ADVANCED: Includes outline data and query block
+
+
+-- Verify SQL exists in AWR:
+SELECT sql_text 
+FROM dba_hist_sqltext 
+WHERE sql_id = '<your_sql_id>';
+
+-- Check available plans:
+SELECT plan_hash_value 
+FROM dba_hist_sql_plan 
+WHERE sql_id = '<your_sql_id>';
+
+
+
+
+
+--# Change the SQL PROFILE of SQL_ID Permanently.
 --------------------------------------------------------------------------------------------------------------------------
 --
 -- File Name : coe_xfr_sql_profile.sql
@@ -742,6 +779,20 @@ UNDEFINE 1 2 sql_id plan_hash_value
 CL COL
 PRO
 PRO COE_XFR_SQL_PROFILE completed.
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Verification 
+-- Check SQL profile
+SELECT name, category, status, sql_text 
+FROM dba_sql_profiles 
+WHERE name = 'coe_<SQL_ID>_<PLAN_HASH_VALUE>';
+
+-- Verify execution plan uses the profile
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR('<SQL_ID>', NULL, 'ADVANCED'));
+
+
 
 
 
