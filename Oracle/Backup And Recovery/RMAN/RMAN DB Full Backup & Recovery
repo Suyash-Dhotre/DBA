@@ -1,0 +1,112 @@
+==============================
+RMAN DB Full Backup & Recovery
+==============================
+
+--| Take Backup:
+
+RMAN> backup database plus archivelog;
+
+RMAN> list backup of database summary;
+
+	  List of Backups
+	  ===============
+	  Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+	  ------- -- -- - ----------- --------------- ------- ------- ---------- ---
+	  31      B  F  A DISK        25-NOV-24       1       1       NO         TAG20241125T165139
+
+RMAN> list backup of spfile summary;
+
+	  List of Backups
+	  ===============
+	  Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+	  ------- -- -- - ----------- --------------- ------- ------- ---------- ---
+	  33      B  F  A DISK        25-NOV-24       1       1       NO         TAG20241125T165155
+
+RMAN> list backup of controlfile summary;
+
+	  List of Backups
+	  ===============
+	  Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+	  ------- -- -- - ----------- --------------- ------- ------- ---------- ---
+	  33      B  F  A DISK        25-NOV-24       1       1       NO         TAG20241125T165155
+
+
+
+--| Simulate Failure:
+
+SQL> show parameter spfile;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+spfile                               string      /oracle/u01/app/oracle/product/19c/dbhome_1/dbs/spfilercat.ora
+                                                 
+SQL> select name from v$controlfile;
+
+NAME
+--------------------------------------------------------------------------------
+/oracle/u02/DB/rcat/fra/RCAT/control02.ctl
+
+SQL> select name from v$datafile;
+
+NAME
+--------------------------------------------------------------------------------
+/oracle/u02/DB/rcat/data/RCAT/system01.dbf
+/oracle/u02/DB/rcat/data/RCAT/tbpitr.dbf
+/oracle/u02/DB/rcat/data/RCAT/sysaux01.dbf
+/oracle/u02/DB/rcat/data/RCAT/undotbs01.dbf
+/oracle/u02/DB/rcat/data/RCAT/rmantbs01.dbf
+/oracle/u02/DB/rcat/data/RCAT/users01.dbf
+
+
+rm -rf /oracle/u02/DB/rcat/data/RCAT/*.dbf
+rm -rf /oracle/u02/DB/rcat/fra/RCAT/control02.ctl
+rm -rf /oracle/u01/app/oracle/product/19c/dbhome_1/dbs/spfilercat.ora
+
+
+
+--| Restore and Recover: 
+
+SQL> shut abort
+SQL> startup force nomount;
+
+
+RMAN> run{
+	      allocate channel ch1 device type disk;
+	      allocate channel ch2 device type disk;
+	      restore spfile from autobackup;
+	      startup force nomount;
+	      restore controlfile from autobackup;
+	      sql 'alter database mount';
+	      restore database from tag TAG20241125T165139;
+	      recover database;
+	      sql 'alter database open RESETLOGS';
+	      release channel ch1;
+	      release channel ch2;
+	     }
+
+
+
+--| Manully Restoring
+
+RMAN> STARTUP FORCE NOMOUNT;
+RMAN> Restore spfile from autobackup;
+
+RMAN> STARTUP FORCE NOMOUNT;
+RMAN> Restore controlfile from autobackup;
+RMAN> sql 'alter database mount';
+
+RMAN> Restore database from tag TAG20241125T165139;
+RMAN> Recover database;
+RMAN> sql 'alter database open RESETLOGS';
+
+
+
+--| In case AUTOBACKUP is OFF, then Restore SPFILE & Control File using below
+
+RMAN> list backup of spfile summary;
+RMAN> list backup tag TAG20241125T165155;
+RMAN> Restore spfile from tag 'TAG20241125T165155';
+
+RMAN> list backup of controlfile summary;
+RMAN> list backup tag TAG20241125T165155;
+RMAN> Restore controlfile from tag 'TAG20241125T165155';
