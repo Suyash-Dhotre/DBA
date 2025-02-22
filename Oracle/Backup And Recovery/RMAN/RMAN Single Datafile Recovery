@@ -1,0 +1,60 @@
+=============================
+RMAN Single Datafile Recovery
+=============================		
+
+SQL> create tablespace custom datafile '/oracle/u02/DB/rcat/data/RCAT/custom01.dbf' size 10m;
+
+
+--## taking backup
+
+RMAN> backup database plus archivelog;
+RMAN> list backup of database summary;
+
+	   List of Backups
+	   ===============
+	   Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+	   ------- -- -- - ----------- --------------- ------- ------- ---------- ---
+	   17      B  F  A DISK        26-NOV-24       1       1       NO         TAG20241126T190516
+
+
+
+--## Demo and simulate failure
+
+SQL> create table test(serial number(2),name varchar2(5)) tablespace custom;
+SQL> insert into test values(1,'one');
+SQL> insert into test values(2,'Two');
+SQL> insert into test values(3,'Three');
+SQL> insert into test values(4,'Four');
+SQL> commit;
+
+SQL> !rm -rf /oracle/u02/DB/rcat/data/RCAT/custom01.dbf
+
+SQL> SELECT FILE#, STATUS, ERROR, RECOVER, TABLESPACE_NAME, NAME FROM V$DATAFILE_HEADER;
+
+	  FILE# STATUS  ERROR                          REC TABLESPACE_NAME                NAME
+	  ----- ------- ------------------------------ --- ------------------------------ -------------------------------------------------
+	  	1 ONLINE                                 NO  SYSTEM                         /oracle/u02/DB/rcat/data/RCAT/system01.dbf
+	  	3 ONLINE                                 NO  SYSAUX                         /oracle/u02/DB/rcat/data/RCAT/sysaux01.dbf
+	  	4 ONLINE                                 NO  UNDOTBS1                       /oracle/u02/DB/rcat/data/RCAT/undotbs01.dbf
+	  	5 ONLINE  CANNOT OPEN FILE
+	  	7 ONLINE                                 NO  USERS                          /oracle/u02/DB/rcat/data/RCAT/users01.dbf		
+
+
+
+--## Restore datafile
+
+RMAN> list failure;
+
+	   using target database control file instead of recovery catalog
+	   Database Role: PRIMARY
+	   List of Database Failures
+	   =========================
+	   Failure ID Priority Status    Time Detected Summary
+	   ---------- -------- --------- ------------- -------
+	   268        HIGH     OPEN      26-NOV-24     One or more non-system datafiles are missing
+
+RMAN> SQL 'ALTER TABLESPACE custom OFFLINE IMMEDIATE';
+RMAN> RESTORE DATAFILE 5;
+RMAN> RECOVER DATAFILE 5;
+RMAN> SQL 'ALTER TABLESPACE custom ONLINE';
+RMAN> list failure;
