@@ -224,8 +224,12 @@ tablespace TBS_01;
 SELECT partition_name, high_value FROM ALL_TAB_PARTITIONS;
 
 
-#= DBMS_REDEFINITION
 
+
+
+=======================
+#= DBMS_REDEFINITION
+=======================
 Steps to Convert a Non-Partitioned Table into a Partitioned Table
 1. Check if the table can be redefined.
 2. Create an interim table with partitions.
