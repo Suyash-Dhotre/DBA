@@ -1,0 +1,285 @@
+==================================
+Oracle Oracle Database Cold Backup
+==================================
+
+shut immediate;
+
+cp /db_Datafiles/* /backup/
+cp /db_Tempfiles/* /backup/
+cp /db_ControlFiles/* /backup/
+cp /db_redolog/* /backup/
+
+
+
+=======================================
+Oracle Database Hot Backup and Recovery
+=======================================
+--DB name = rcat
+
+## Taking hot backup
+
+mkdir -p /dbback/hot_bkp
+
+Alter database begin backup;
+
+select name from v$datafile;
+select name from v$controlfile;
+select member from v$logfile;
+
+
+cp /oracle/u02/DB/rcat/data/RCAT/system01.dbf /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/sysaux01.dbf /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/undotbs01.dbf /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/rmantbs01.dbf /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/users01.dbf /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/control01.ctl /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/fra/RCAT/control02.ctl /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/redo03.log /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/redo02.log /dbback/hot_bkp
+cp /oracle/u02/DB/rcat/data/RCAT/redo01.log /dbback/hot_bkp
+
+
+Alter database end backup;
+
+Alter database backup controlfile to '/dbback/hot_bkp/ctrolfile_DB_level_bkp.ctl';
+
+Alter database backup controlfile to trace as '/dbback/hot_bkp/ctrolfile_trace_bkp.ctl';
+
+create pfile='/dbback/hot_bkp/initrcat.ora' from spfile;
+
+create spfile='/dbback/hot_bkp/spfilercat.ora' from pfile;
+
+set lines 300
+col name for a40
+col value for a70
+select name , value from v$diag_info;
+
+SELECT THREAD#,SEQUENCE#,NAME FROM V$ARCHIVED_LOG;
+
+cp /oracle/u02/DB/rcat/fra/RCAT/archivelog/2024_11_13 /dbback/hot_bkp
+
+
+
+## Important queries
+Note:
+	Sometimes you want to check which tablespaces inside the database are specifically kept in BACKUP mode. 
+	Use below query to get all the tablespaces which are ACTIVE mode (means they are under BEGIN BACKUP mode)
+
+
+SELECT t.name AS "TB_NAME", d.file# as "DF#", d.name AS "DF_NAME", b.status
+FROM V$DATAFILE d, V$TABLESPACE t, V$BACKUP b
+WHERE d.TS#=t.TS#
+AND b.FILE#=d.FILE#
+AND b.STATUS='ACTIVE'
+/
+
+TB_NAME        DF#        DF_NAME                             		  STATUS
+-------------  ---------- ------------------------------------		  ------
+USERS          8          /oracle/u02/DB/rcat/data/RCAT/users01.dbf   ACTIVE
+
+
+
+## 1 ## Parameter file recovery
+
+:: Scenario 1: When you have parameter file backup
+	Let us simulate a failure. 
+	We assume that we already have taken the hot backup with parameter file and spfile.
+		-DB is up and running
+		-Delete both pfile and spfile under $ORACLE_HOME/dbs location
+		-Connect to sqlplus and shutdown the database
+
+	Now start the database and it should throw below error
+		ORA-01078: failure in processing system parameters
+		LRM-00109: could not open parameter file '/u01/app/oracle/product/11.2.0/dbhome_1/dbs/initproddb.ora'
+		Recovering the parameter file
+
+	Exit the sqlplus
+
+	Recover
+		-Go to hot backup location
+		-Copy parameter files (pfile & spfile) to $ORACLE_HOME/dbs location
+		-Connect to sqlplus and start your database!
+	
+	
+
+:: Scenario 2: When you do not have parameter file backup
+	Let us assume we do not have hot backup of the parameter files, then follow below method to recovery your parameter file
+	Recover
+		-Goto alert log location (Generally /oracle/u01/app/oracle/diag/rdbms/rcat/rcat/trace)
+		-Cat the alert log file (cat alert_rcat.log) and Find last time database was started
+			Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+			Version 19.3.0.0.0.
+			ORACLE_HOME:    /oracle/u01/app/oracle/product/19c/dbhome_1
+			System name:    Linux
+			Node name:      vm1dr.example.com
+			Release:        5.15.0-301.163.5.2.el8uek.x86_64
+			Version:        #2 SMP Wed Oct 16 18:57:13 PDT 2024
+			Machine:        x86_64
+			Using parameter settings in server-side spfile /oracle/u01/app/oracle/product/19c/dbhome_1/dbs/spfilercat.ora
+			System parameters with non-default values:
+			  processes                = 300
+			  nls_language             = "AMERICAN"
+			  nls_territory            = "AMERICA"
+			  memory_target            = 1456M
+			  control_files            = "/oracle/u02/DB/rcat/data/RCAT/control01.ctl"
+			  control_files            = "/oracle/u02/DB/rcat/fra/RCAT/control02.ctl"
+			  db_block_size            = 8192
+			  compatible               = "19.0.0"
+			  log_archive_dest_1       = "location=/oracle/u02/DB/rcat/fra/RCAT/archivelog"
+			  db_recovery_file_dest    = "/oracle/u02/DB/rcat/fra/RACT_new"
+			  db_recovery_file_dest_size= 8256M
+			  undo_tablespace          = "UNDOTBS1"
+			  remote_login_passwordfile= "EXCLUSIVE"
+			  dispatchers              = "(PROTOCOL=TCP) (SERVICE=rcatXDB)"
+			  audit_file_dest          = "/oracle/u01/app/oracle/admin/rcat/adump"
+			  audit_trail              = "DB"
+			  db_name                  = "rcat"
+			  open_cursors             = 300
+			  diagnostic_dest          = "/oracle/u01/app/oracle"
+			2024-11-18T07:36:35.738021-05:00
+			
+		-Copy all the non-default parameters into notepad
+		-Create a pfile under $ORACLE_HOME/dbs location
+		-The file name should be init<sid>.ora
+		-Paste all contents from notepad
+		-Start the database!
+
+
+
+:: Scenario 3: When you do not have parameter file backup onwards 11g
+
+	From 11g onwards, you can recreate parameter file in case the database is up and running. 
+	Even if you loose parameter file but database instance is still running, we can recreate parameter file from memory:
+
+		CREATE PFILE FROM MEMORY;
+		
+
+
+## 2 ## Control file recovery
+
+Simulate failure (we assume that hot backup is already taken). 
+Without shutting down the database, delete database control file at OS level
+	
+	select name from v$controlfile;
+	rm -rf /oracle/u02/DB/rcat/data/RCAT/control01.ctl
+	rm -rf /oracle/u02/DB/rcat/fra/RCAT/control02.ctl
+		   
+:: Scenario 1: steps for control file incomplete recovery	
+	shutdown immediate 
+	!cp /dbback/hot_bkp/control01.ctl /oracle/u02/DB/rcat/data/RCAT/control01.ctl
+	!cp /dbback/hot_bkp/control01.ctl /oracle/u02/DB/rcat/fra/RCAT/control02.ctl
+	startup mount             
+	recover database using backup controlfile until cancel; 
+	alter database open resetlogs;
+	
+:: Scenario 2: steps for control file complete recovery
+	alter database backup controlfile to trace as '/dbback/hot_bkp/control_bkp.trc'; 
+	shutdown immediate
+
+  -Goto udump location and copy the first create controlfile script to a file called control.sql
+	startup nomount 
+	@control.sql 
+	alter database open;
+
+  -Note: After creating control files using above procedure, there will be no SCN in that. 
+	So server process will write the latest SCN to control files in this situation by taking info from datafile header.
+
+
+
+## 3 ## Redolog recovery
+	-Simulate a failure and let us delete redologs at OS level
+		select member from v$logfile;
+		rm -rf /oracle/u02/DB/rcat/data/RCAT/redo03.log
+		rm -rf /oracle/u02/DB/rcat/data/RCAT/redo02.log
+		rm -rf /oracle/u02/DB/rcat/data/RCAT/redo01.log
+			   
+	-Recover redo log file in archive log mode
+		shutdown immediate 
+		startup mount 
+		recover database until cancel; 
+		alter database open resetlogs;
+
+  -Note:(new incarnation)
+	-What resetlogs will do?
+		Create new redolog files at OS level (location and size will be taken from controlfile) if not already existing
+		Resets the log seq number (LSN) to 1, 2, 3 etc for the created files
+		Whenever database is opened with resetlogs option, we will say database entered into new incarnation. 
+			If database is in new incarnation, the backups which were taken till now are no more useful. 
+			So, whenever we perform an incomplete recovery we need to take full backup of database immediately
+		
+	-We can find the prev incarnation information of a database from below query
+		select resetlogs_change#,resetlogs_time from v$database;
+		
+
+## 4 ## Tablespace recovery
+
+	-Delete all the data files related to particular tablespace and follow below recovery steps
+	-Recover
+		alter tablespace mydata offline; 
+		!cp /dbback/hot_bkp/users01.dbf /oracle/u02/DB/rcat/data/RCAT/
+		recover tablespace mydata; 
+		alter tablespace mydata online;
+
+
+## 5 ## Datafile recovery
+
+	-Delete only one data file related to a tablespace and follow below steps to recover the data file
+	-Recover
+		alter database datafile '/oracle/u02/DB/rcat/data/RCAT/users01.dbf' offline; 
+		!cp /dbback/hot_bkp/users01.dbf /oracle/u02/DB/rcat/data/RCAT/
+		recover datafile '/oracle/u02/DB/rcat/data/RCAT/users01.dbf'; 
+		alter database datafile '/datafiles/prod/mydata01.dbf' online;
+
+
+## 6 ## System tablespace recovery
+
+	-Delete all the data files related to system tablespace and use below steps to recover the system tablespace
+	-Recover
+		shut immediate 
+		!cp /dbback/hot_bkp/system01.dbf /oracle/u02/DB/rcat/data/RCAT/
+		startup mount 
+		recover tablespace system; 
+		alter database open;
+
+
+## 7 ## Entire database recovery
+
+	-Let us simulate a failure (make sure you have already taken the database backup). 
+	 Delete all the data files, control files and redo log files associated to the database
+	
+		select name from v$controlfile;
+		select name from v$datafile;
+		select member from v$logfile;
+
+	-Recover
+		shut immediate or shut abort
+		!cp /dbback/hot_bkp/*.dbf /oracle/u02/DB/rcat/data/RCAT/ 
+		startup mount 
+		recover database; 
+		alter database open;
+
+Note: we can drop a single datafile using below command. It will delete the file at OS level, 
+	  but data dictionary will not be updated and never we can get back that file even if we have backup. 
+	  So, don’t use this in real time.
+		SQL> alter database datafile ‘/datafiles/prod/mydata01.dbf’ offline drop;
+
+
+
+## 8 ## Datafile recovery without backup
+
+Note: <IMP>
+	In case you do not have hot backup of the database or a particular data file still you can recover entire data file 
+	but you need to have all the archive logs from the day data file was first created.
+
+	-To simulate this type of failure, do following
+		Create a tablespace	
+		Create user to store one table inside new tablespace
+		Delete data file at OS level
+
+	-Recover(note we do not have any hot backup)
+		alter database datafile 6 offline; 
+		alter database create datafile '/u01/app/oracle/oradata/clone1/test01.dbf' as '/u01/app/oracle/oradata/clone1/test01.dbf'; 
+		recover tablespace test;
+		alter tablespace test online;
+	
+	
