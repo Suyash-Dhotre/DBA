@@ -1,0 +1,140 @@
+=================================
+Tablespace Point-in-time Recovery
+=================================
+
+Why Tablespace PITR Recovery?
+-->
+Let us assume that you have a problem only with one user and the transaction that the user executed has impacted one table that reside under one tablespace or one data file. 
+So rather than performing the entire database point in time recovery, We can perform single tablespace point in time recovery just before the transactions were issued. 
+In this way, only the affected tablespace will not be available for the users. Rest all database will still be up and running.
+
+
+How it works?
+
+TBPITR is different from DBPITR
+-->
+In DBPITR, the entire database is restored to back in time. 
+In TBPITR, we take the tablespace back in time or before the wrong transactions are issued.
+
+
+It’s not straight restore and recover
+-->
+Once tablespace is dropped, you cannot restore at via RMAN as details of the tablespace are removed from the control file.
+
+
+:: Let us say somebody dropped the entire tablespace and then you try to issue the command restore tablespace from RMAN. 
+   The command will not work because once you drop the tablespace, control files will update that this tablespace does not exist. 
+   This means even if you try to restore it from RMAN, the tablespace will not be restored.
+
++-------------------------+
++ TSPITR Recovery Methods +
++-------------------------+
+-->
+There are three methods which you can use to recover dropped tablespace:
+
+1.Create DB clone with PITR before tablespace drop, export tablespace from clone DB and import into original database
+2.Perform entire database Point In Time recovery. This lead to downtime + loss of data
+3.Use automated RMAN TSPITR method
+
+==>:3: RMAN TSPITR
+-->
+Its completely automated method.
+You just have to run the command TBPITR and everything will be taken care.
+To perform RMAN TSPITR, you need following
+
+ - Timestamp or SCN when tablespace was dropped → You can get this information form alert log
+ - A location with same space as your database size
+
+On the same server you need another Mount point where a database of the same size will be cloned. 
+Once you run the TSPITR, it will Create a clone of the database in the location that you specify and then it will export the tablespace, 
+import it into original database and then clean the cloned instance. And all the steps are automatically done by RMAN.
+
+
+** Note:- <IMP>
+Make sure the location that you choose for the auxiliary instance of the cloned instance should have the same space or required space as an prod DB.	
+
+-----------
+|-- Lab --|
+-----------
+
+--| CREATE TEST TABLESPACE & USER FOR ACTIVITY
+	create tablespace TBPITR datafile '/oracle/u02/DB/rcat/data/RCAT/tbpitr.dbf' size 10M;
+	create user tbtest identified by tbtest;
+	alter user tbtest default tablespace TBPITR;
+	alter user tbtest quota unlimited on TBPITR;
+	grant connect, resource to tbtest;
+	grant select on scott.emp to tbtest;
+	conn tbtest/tbtest
+	create table emp as select * from scott.emp;
+
+
+--| Take RMAN backup
+
+	backup database format '/dbback/RCAT_DB_RMAN_Backups/RCAT_%U' plus archivelog format '/dbback/RCAT_DB_RMAN_Backups/RCAT_Archive_%U';
+
+
+--| Check the database size and make sure you have a destination with same or more free space.
+
+	col "Database Size" format a20
+	col "Free space" format a20
+	col "Used space" format a20
+	select round(sum(used.bytes) / 1024 / 1024 / 1024 ) || ' GB' "Database Size"
+	, round(sum(used.bytes) / 1024 / 1024 / 1024 ) -
+	round(free.p / 1024 / 1024 / 1024) || ' GB' "Used space"
+	, round(free.p / 1024 / 1024 / 1024) || ' GB' "Free space"
+	from (select bytes
+	from v$datafile
+	union all
+	select bytes
+	from v$tempfile
+	union all
+	select bytes
+	from v$log) used
+	, (select sum(bytes) as p
+	from dba_free_space) free
+	group by free.p
+	/
+
+
+--| DROP THE TABLESPACE AND START TBPIT PROCESS
+
+	drop tablespace TBPITR including contents and datafiles;
+
+
+--| Let us try to restore the tablespace using RMAN
+
+	RMAN> restore tablespace TBPITR; 		-- through error
+			Starting restore at 25-NOV-24
+			using target database control file instead of recovery catalog
+			allocated channel: ORA_DISK_1
+			channel ORA_DISK_1: SID=41 device type=DISK
+			RMAN-00571: ===========================================================
+			RMAN-00569: =============== ERROR MESSAGE STACK FOLLOWS ===============
+			RMAN-00571: ===========================================================
+			RMAN-03002: failure of restore command at 11/25/2024 13:50:10
+			RMAN-20202: Tablespace not found in the recovery catalog
+			RMAN-06019: could not translate tablespace name "TBPITR"
+
+
+--| Open the alert log and check the time when the tablespace was dropped. 
+
+		2024-11-25T13:49:42.693380-05:00
+		drop tablespace TBPITR including contents and datafiles
+		2024-11-25T13:49:48.448541-05:00
+		Deleted file /oracle/u02/DB/rcat/data/RCAT/tbpitr.dbf
+		Completed: drop tablespace TBPITR including contents and datafiles
+
+
+--| CONNECT TO RMAN AND START RECOVERY
+	
+run{
+	recover tablespace TBPITR until time "to_date('25-nov-24 13:49:42','dd-mon-rr hh24:mi:ss')"
+	auxiliary destination '/dbback/RCAT_auxiliary_loc';
+	}
+
+
+--| Make TS online
+	select status,tablespace_name from dba_tablespaces;
+	alter tablespace TBPITR online;
+	
+	
