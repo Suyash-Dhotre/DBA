@@ -1,0 +1,325 @@
+=============
+ReIncarnation
+=============
+
+RMAN> list incarnation;
+RMAN> reset database to incarnation 2 ;
+RMAN> list incarnation;
+
+
+==================
+Set RMAN Parameter
+==================
+
+## RMAN Default Device Type
+
+RMAN> show device type;
+RMAN> CONFIGURE DEFAULT DEVICE TYPE DISK;
+RMAN> CONFIGURE DEFAULT DEVICE TYEP DISK PARALLELISM 2;
+
+
+## Configure RMAN Default Channels
+
+RMAN> CONFIGURE CHANNLE DEVICE TYPE DISK;
+RMAN> CONFIGURE CHANNEL DEVICE TYPE DISK FORMAT '/tmp/%U';
+RMAN> CONFIGURE CHANNEL DEVICE TYPE DISK FORMAT '/disk1/ora_df%t_s%s_s%p';
+RMAN> CONFIGURE CHANNEL DEVICE TYPE DISK FORMAT '+dgroup1';
+
+-->clear configurations 
+RMAN> CONFIGURE DEVICE TYPE DISK CLEAR;
+RMAN> CONFIGURE DEFAULT DEVICE TYPE CLEAR;
+RMAN> CONFIGURE CHANNEL DEVICE TYPE DISK CLEAR;
+
+
+=====================
+Validate RMAN Backups
+=====================
+RMAN> validate database;
+RMAN> validate backupset 22;
+RMAN> validate datafile 5 block 2;
+RMAN> run
+	   {
+	   allocate channel c1 device type disk;
+	   allocate channel c2 device type disk;
+	   validate database;
+	   }
+
+RMAN> backup validate database archivelog all;
+RMAN> backup validate check logical database archivelog all;
+
+--validate backup before restore
+RMAN> restore database validate;
+RMAN> restore archivelog all validate;
+
+
+=============================
+Taking Compressed RMAN Backup
+=============================
+
+RMAN> backup as compressed backupset database plus archivelog;
+RMAN> configure device type disk parallelism 1 backup type to compressed backupset;
+
+BASIC	: Its the basic compression method which is default configured in rman parameters.
+LOW		: Lead compression method where DB performance and backup size hold good.
+MEDIUM	: Recommended method as its the best combination of DB performance and compression ratio.
+HIGH	: You get the highest backup compression but DB performance and backup will be very slow.
+
+
+RMAN> CONFIGURE COMPRESSION ALGORITHM ‘HIGH’;
+RMAN> backup as compressed backupset database plus archivelog;
+
+
+========
+IMP RMAN 
+========
+
+list backup summary
+crosscheck backup;
+crosscheck archivelog all;
+DELETE NOPROMPT EXPIRED ARCHIVELOG ALL;
+delete noprompt expired backup;
+report obsolete;
+delete noprompt obsolete;
+
+
+=======================
+RMAN Archivelog Backups
+=======================
+
+##Taking Archivelog Backup
+RMAN> list archivelog all; 								-- Archivelog known to controlfile
+RMAN> backup archivelog all; 							-- Backup all the archivelog
+RMAN> backup archivelog all not backed up 1 times;
+RMAN> backup archivelog all delete input; 				-- Backup and delete from disk
+RMAN> list archivelog all backed up 1 times to DISK; 	-- list backed up archives	
+
+
+##Deleting Archivelog Backup
+RMAN> crosscheck archivelog all;
+RMAN> delete expired archivelog all;
+RMAN> delete archivelog all backed up 1 times to DISK;
+RMAN> crosscheck archivelog sequence 24;
+RMAN> crosscheck backup of archivelog sequence 24;
+
+
+
+
+==============
+RMAN Backup DB
+==============
+backup database;
+backup archivelog all delete input;
+
+BACKUP INCREMENTAL LEVEL 0 DATABASE;
+BACKUP INCREMENTAL LEVEL 1 DATABASE;
+BACKUP INCREMENTAL LEVEL 1 CUMULATIVE DATABASE;
+
+BACKUP INCREMENTAL LEVEL 0 DATABASE plus archivelog delete all input;
+BACKUP INCREMENTAL LEVEL 1 DATABASE plus archivelog delete all input;
+
+backup incremental level 0 database archivelog all delete input;
+backup incremental level 1 database archivelog all delete input;
+
+backup incremental level 0 as compressed backupset database tag weekly_Full_backup archivelog all delete input;
+backup incremental level 1 as compressed backupset database tag Daily_Incre_backup archivelog all delete input;
+backup incremental level 1 as compressed backupset database tag Daily_Incre_backup archivelog all tag Arch_bkp delete input; 
+
+
+backup database format '$Backup_Location/digital_`date +%F`_%U_DB.bkp';
+backup archivelog all format '$Backup_Location/digital_`date +%F`_%U_ArchiveLog.bkp';
+backup current controlfile format '$Backup_Location/digital_`date +%F`_ControlFile.bkp';
+
+
+
+===================
+Delete RMAN Backups
+===================
+
+###Delete All Backups
+RMAN> DELETE BACKUP;
+RMAN> DELETE NOPROMPT BACKUP;
+
+
+###Delete Archivelog Backup
+--To delete archivelog files from disk (NOT BACKUP), use below commands
+RMAN> DELETE ARCHIVELOG ALL;
+RMAN> DELETE ARCHIVELOG UNTIL SEQUENCE 300;
+RMAN> DELETE ARCHIVELOG ALL COMPLETED BEFORE ‘sysdate-1’;
+RMAN> DELETE ARCHIVELOG ALL BACKED UP 2 TIMES to disk;
+
+--To delete archivelog files from the RMAN backups (NOT DISK), use below commands
+RMAN> DELETE BACKUP OF ARCHIVELOG ALL;
+RMAN> DELETE BACKUP OF ARCHIVELOG ALL COMPLETED BEFORE 'SYSDATE-7';
+
+
+###Delete Backup Tag
+RMAN> DELETE BACKUP TAG <tag>;
+
+
+###Delete Expired Backups
+RMAN> CROSSCHECK BACKUP;
+RMAN> DELETE EXPIRED BACKUP;
+RMAN> DELETE EXPIRED ARCHIVELOG ALL;
+
+
+###Delete Obsolete Backups
+RMAN> DELETE OBSOLETE;
+
+
+###Delete Archivelog While Backup
+RMAN> BACKUP ARCHIVELOG ALL DELETE INPUT;
+RMAN> BACKUP ARCHIVELOG ALL FROM SEQUENCE 1200 DELETE ALL INPUT;
+
+
+
+===========
+RECOVER DB 
+===========
+
+RUN {
+  # Restore the control file
+  RESTORE CONTROLFILE FROM '/backup/location/controlfile.bkp';
+
+  # Mount the database
+  ALTER DATABASE MOUNT;
+
+  # Restore the data files
+  RESTORE DATABASE;
+
+  # Recover the database
+  RECOVER DATABASE;
+
+  # Open the database with RESETLOGS
+  ALTER DATABASE OPEN RESETLOGS;
+}
+
+
+=======================
+Recover Single DataFile
+=======================
+
+RMAN> SQL 'ALTER TABLESPACE custom OFFLINE IMMEDIATE';
+RMAN> RESTORE DATAFILE 5;
+RMAN> RECOVER DATAFILE 5;
+RMAN> SQL 'ALTER TABLESPACE custom ONLINE';
+RMAN> list failure;
+
+
+================
+Block Corruption 
+================
+
+--| Assume that block 121 under datafile 3 is corrupted. Use below command to repair the data block
+
+RMAN> blockrecover datafile 3 block 121;
+
+
+====
+PITR
+====
+
+run{
+	recover tablespace TBPITR until time "to_date('25-nov-24 13:49:42','dd-mon-rr hh24:mi:ss')"
+	auxiliary destination '/dbback/RCAT_auxiliary_loc';
+	}
+
+
+run{
+	  RESTORE DATABASE from tag TAG20241125T155222;
+	  RECOVER DATABASE UNTIL TIME "TO_DATE('2024-11-25 15:53:21', 'YYYY-MM-DD HH24:MI:SS')";
+	  sql 'ALTER DATABASE OPEN RESETLOGS';
+	  }
+
+
+==============
+RAMN Duplicate
+==============
+
+-- backup required for Duplicate INACTIVE in FRA as Source
+RMAN> DUPLICATE TARGET DATABASE TO orcl until time "TO_DATE('2024-11-12 05:14:29', 'YYYY-MM-DD HH24:MI:SS')" SPFILE NOFILENAMECHECK;
+
+-- No backup required Duplicate ACTIVE
+RMAN> DUPLICATE DATABASE TO orcl FROM ACTIVE DATABASE SPFILE NOFILENAMECHECK;
+
+
+--|
+# Backup files are in matching location to that on the source server.
+# Duplicate database to TARGET's current state using TARGET, CATALOG or both.
+DUPLICATE TARGET DATABASE TO DB11G
+  SPFILE
+  NOFILENAMECHECK;
+
+# Backup files are in matching location to that on the source server.
+# Backup state (no TARGET or CATALOG)
+DUPLICATE TARGET DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+
+# Duplicate database to TARGET's state 4 days ago.
+DUPLICATE TARGET DATABASE TO DB11G
+  UNTIL TIME 'SYSDATE-4'
+  SPFILE
+  NOFILENAMECHECK;
+
+# Backup files are in a different location to that on the source server.
+# Duplicate database to the most recent state possible using the provided backups.
+# Works with just an AUXILIARY connection only.
+DUPLICATE DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+
+# Do a point-in-time clone.
+DUPLICATE DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK
+  UNTIL TIME "TO_DATE('2014-11-17 07:00:00', 'YYYY-MM-DD HH24:MI:SS')";
+
+###IMP### Alter some SPFILE parameters during the clone. change DB name
+DUPLICATE DATABASE TO MYCLONE
+  SPFILE
+    parameter_value_convert ('DB11G','MYCLONE')
+    set db_file_name_convert='/u01/oradata/db11g/','/u01/oradata/myclone/'
+    set log_file_name_convert='/u01/oradata/db11g/','/u01/oradata/myclone/'
+    set control_files='/u01/oradata/myclone/control01.ctl','/u01/oradata/myclone//control02.ctl','/u01/oradata/myclone/control03.ctl'
+    set db_name='MYCLONE'
+    set log_archive_dest_1='location=/u01/oradata/myclone/arch'
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+  
+  
+###IMP### Active dublicate no backup and copy from source to Destination
+DUPLICATE DATABASE TO DB11G
+  FROM ACTIVE DATABASE
+  SPFILE
+  NOFILENAMECHECK;
+
+
+============================================
+For Data gard configuration RMAN Duplication
+============================================
+:- Duplicate primary database via RMAN
+
+:: PRIMARY ::
+
+rman target sys@orcl auxiliary sys@orcl_stb
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY
+		DORECOVER
+		SPFILE
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_config='dg_config=(orcl,orcl_stb)'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		SET standby_file_management='AUTO'
+		BACKUP LOCATION '/dbback/DB_Duplicate/'
+		NOFILENAMECHECK;
+
+(Optional Active one)
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY FROM ACTIVE DATABASE DORECOVER 
+		SPFILE 
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		NOFILENAMECHECK;
