@@ -1,0 +1,33 @@
+===============
+Invalid Objects
+===============
+
+- Changing things in database can cause some objects to become INVALID. Query to check invalid objects in oracle
+
+SELECT OWNER, OBJECT_TYPE, OBJECT_NAME 
+FROM DBA_OBJECTS
+WHERE STATUS != ‘VALID’ 
+ORDER BY OWNER, OBJECT_TYPE;
+
+OR
+
+SELECT OWNER, STATUS FROM DBA_OBJECTS 
+WEHRE STATUS !=’VALID’
+GROUP BY OWNER, STATUS;
+
+
+- Recompiling Invalid Objects
+- You can handle INVALID objects to make them VALID. Execute the below script
+
+ALTER PACKAGE package_name COMPILE;
+ALTER PROCEDURE procedure_name COMPILE;
+ALTER FUNCTION function_name COMPILE;
+ALTER VIEW view_name COMPILE;
+
+EXEC UTL_RECOMP.recomp_serial(‘schema name’);   --> Oracle 9i
+
+EXEC DBMS_UTILITY.COMPILE_SCHEMA(‘SCOTT’);      --> 10g and above
+
+SQL> @$ORACLE_HOME/rdbms/admin/utlrp.sql;
+
+- Note: Oracle highly recommends running the script towards the end of any migration/upgrade/downgrade.
