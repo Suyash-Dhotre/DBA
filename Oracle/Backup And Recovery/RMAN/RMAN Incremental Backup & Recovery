@@ -1,0 +1,39 @@
+===================================
+RMAN Incremental Backup & Recovery
+===================================
+
+--| Take backup 0 and 1 level 
+
+RMAN> backup incremental level 0 database plus archivelog;
+
+RMAN> backup incremental level 1 database plus archivelog;
+
+RMAN> list backup of database summary;
+		List of Backups
+		===============
+		Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+		------- -- -- - ----------- --------------- ------- ------- ---------- ---
+		2       B  0  A DISK        26-NOV-24       1       1       NO         TAG20241126T182746
+		6       B  1  A DISK        26-NOV-24       1       1       NO         TAG20241126T183407
+
+
+
+--| Simulate failure
+
+rm -rf /oracle/u02/DB/rcat/data/RCAT/*.dbf
+
+
+
+--| Restoring DB
+
+SQL> shut abort;
+SQL> startup mount;
+
+RMAN> run
+	  {
+	  RESTORE DATABASE from tag TAG20241126T182746;
+	  RECOVER DATABASE from tag TAG20241126T183407;
+	  RECOVER DATABASE;
+	  sql 'ALTER DATABASE OPEN';
+	  }
+
