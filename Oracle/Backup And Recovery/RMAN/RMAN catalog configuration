@@ -1,0 +1,148 @@
+==============================
+Recovery catalog configuration
+==============================
+
+-----------------------
+:::CATALOG DB SERVER:::
+-----------------------
+
+==| Create Catalog DB
+
+mkdir -p /oracle/u02/DB/rcat/data 
+mkdir -p /oracle/u02/DB/rcat/data 
+
+vi /dbback/DB_rsp_rcat.rsp
+	gdbName=rcat
+	sid=rcat
+	templateName=General_Purpose.dbc
+	sysPassword=oracle
+	systemPassword=oracle
+	datafileDestination=/oracle/u02/DB/rcat/data 
+	recoveryAreaDestination=/oracle/u02/DB/rcat/fra
+	archiveLogMode=false
+	storageType=FS
+	characterSet=AL32UTF8
+	emConfiguration=NONE
+	createAsContainerDatabase=false
+	sampleSchema=true
+	memoryPercentage=40
+	automaticMemoryManagement=true
+
+dbca -silent -createdatabase -responseFile /dbback/DB_rsp_rcat.rsp
+
+--dbca -silent -deleteDatabase -sourceDB rcat -sysDBAUserName sys -sysDBAPassword oracle
+
+
+--| Create tablespace which hold catalog Data 
+
+SQL> create tablespace RMANTBS datafile '/oracle/u02/DB/rcat/data/RCAT/rmantbs01.dbf' size 50M;
+
+
+--| Check size of tablespace
+
+select df.tablespace_name, df.file_name, round(df.bytes/1024/1024) totalSizeMB, nvl(round(usedBytes/1024/1024), 0) usedMB, nvl(round(freeBytes/1024/1024), 0) freeMB,
+    nvl(round(freeBytes/df.bytes * 100), 0) freePerc, df.autoextensible
+from dba_data_files df
+    left join (
+        select file_id, sum(bytes) usedBytes
+        from dba_extents
+        group by file_id
+    ) ext on df.file_id = ext.file_id
+    left join (
+        select file_id, sum(bytes) freeBytes
+        from dba_free_space
+        group by file_id
+    ) free on df.file_id = free.file_id
+order by df.tablespace_name, df.file_name
+/
+
+
+
+--| Create User With Catalog tablespace Access
+
+SQL> create user rman_rc identified by rman_rc default tablespace RMANTBS temporary tablespace temp;
+SQL> grant connect,resource,recovery_catalog_owner to rman_rc;
+SQL> alter user rman_rc quota unlimited on RMANTBS;
+SQL> SELECT table_name FROM dba_tables WHERE owner = 'RMAN_RC';
+
+
+
+--| Create LISTENER
+
+/oracle/u01/app/oracle/product/19c/dbhome_1/network/admin/listener.ora
+	RCAT_LISTENER =
+	  (DESCRIPTION_LIST =
+		(DESCRIPTION =
+		  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+		)
+	  )
+
+	SID_LIST_RCAT_LISTENER =
+	  (SID_LIST =
+		(SID_DESC =
+		  (ORACLE_HOME = /oracle/u01/app/oracle/product/19c/dbhome_1)
+		  (SID_NAME = rcat)
+		)
+	  )
+  
+
+lsnrctl start ORCL_LISTENER
+
+
+-----------------
+:::MAIN SERVER:::
+-----------------
+
+/oracle/u01/app/oracle/product/19c/dbhome_1/network/admin/tnsnames.ora
+	RCAT =
+	 (DESCRIPTION = 
+	   (ADDRESS_LIST =
+		 (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+	   )
+	 (CONNECT_DATA =
+	   (SERVICE_NAME = rcat)
+	 )
+	)
+
+tnsping RCAT
+
+
+
+--| Create RMAN Catalog
+
+rman catalog rman_rc/rman_rc@RCAT
+RMAN> create catalog;
+
+
+
+--| Register DB with Catalog
+
+rman target / catalog rman_rc/rman_rc@RCAT
+RMAN> register database;
+
+
+-----------------------
+:::CATALOG DB SERVER:::
+-----------------------
+
+-- Check The Catalog tables
+SELECT table_name FROM dba_tables WHERE owner = 'RMAN_RC';
+select STAMP, BACKUP_TYPE, INCREMENTAL_LEVEL, START_TIME, COMPLETION_TIME, STATUS, CONTROLFILE_INCLUDED , KEEP_UNTIL from rman_rc.RC_BACKUP_SET;
+SELECT * FROM rman_rc.RC_DATABASE WHERE NAME = 'ORCL';
+
+
+-----------------
+:::MAIN SERVER:::
+-----------------
+
+--| Unregister DB with catalog
+
+rman target / catalog rman_rc/rman_rc@RCAT
+RMAN> unregister database ORCL;
+
+
+--| Drop Catalog
+
+rman catalog rman_rc/rman_rc@RCAT
+RMAN> drop catalog;
+RMAN> drop catalog;
