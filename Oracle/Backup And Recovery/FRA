@@ -1,0 +1,29 @@
+===============================
+Oracle Fast Recovery Area (FRA)
+===============================
+Note: FRA by default contain REDO, ARCHIVE, BACKUPSET, AUTOBACKUP, one CONTROL FILE copy.
+	  You can change redo log and archive log location , control file know the new and old locations, so RMAN take backup all archive log.
+
+
+##Defaul FRA (FILE SYSTEM)
+	DBNAME
+	├── archivelog
+	│   └── 2024_11_13
+	├── autobackup
+	│   └── 2024_11_13
+	├── backupset
+	│   └── 2024_11_13
+	├── control02.ctl
+	└── onlinelog
+
+
+## FRA size and location
+ALTER SYSTEM SET DB_RECOVERY_FILE_DEST_SIZE = 10G; 	-- default 8256M
+
+ALTER SYSTEM SET DB_RECOVERY_FILE_DEST = '/u02/oracle/fra';
+
+
+## For archivelog
+alter system set log_archive_dest_1='location=/u01/proddb/arch'
+alter system set db_recovery_file_dest_size = '20G' scope=both sid='*';
+ALTER SYSTEM SET log_archive_format='arch_%t_%s_%r.arc' SCOPE=spfile; -- use in RAC
