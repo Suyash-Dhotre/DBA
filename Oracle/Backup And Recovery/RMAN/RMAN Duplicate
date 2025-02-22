@@ -1,0 +1,170 @@
+=================
+== RMAN Duplicate
+=================
+Note:-
+	-Source database is running in Archive log mode
+	-Check for space requirements on target server
+	-Servers are able to ping each other
+
+------------------
+:::CLONE SERVER:::
+------------------
+/oracle/u01/app/oracle/product/19c/dbhome_1/network/admin/listener.ora
+	ORCL_LISTENER =
+	  (DESCRIPTION_LIST =
+		(DESCRIPTION =
+		  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1522))
+		)
+	  )
+
+	SID_LIST_ORCL_LISTENER =
+	  (SID_LIST =
+		(SID_DESC =
+		  (GLOBAL_DBNAME = orcl)
+		  (ORACLE_HOME = /oracle/u01/app/oracle/product/19c/dbhome_1)
+		  (SID_NAME = orcl)
+		)
+	  )
+  
+
+ 
+lsnrctl start ORCL_LISTENER
+
+
+------------------
+:::MAIN SERVER:::
+------------------
+/oracle/u01/app/oracle/product/19c/dbhome_1/network/admin/tnsnames.ora
+	ORCL_CLONE =
+	 (DESCRIPTION = 
+	   (ADDRESS_LIST =
+		 (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1522))
+	   )
+	 (CONNECT_DATA =
+	   (SERVICE_NAME = orcl)(UR=A)
+	 )
+	)
+
+tnsping ORCL_CLONE
+
+
+------------------
+:::MAIN SERVER:::
+------------------
+create pfile from spfile;
+select name from v$datafile;
+select name from v$tempfile;
+select member from v$logfile;
+
+cd $ORACLE_HOME/dbs
+scp initorcl.ora orapworcl oracle@vm1dr:$ORACLE_HOME/dbs
+
+-- If no password file exists, create one via the below command and then copy
+orapwd file=$ORACLE_HOME/dbs/orapworcl force=y
+
+
+------------------
+:::CLONE SERVER:::
+------------------
+cat $ORACLE_HOME/dbs/initorcl.ora
+
+mkdir -p <control_file_locations>
+mkdir -p <adump_locations>
+mkdir -p <datafile_location>
+mkdir -p <logfile_locatio>
+mkdir -p <temp_file_location>
+mkdir -p <fra_location>
+
+ mkdir -p /oracle/u01/app/oracle
+ mkdir -p /oracle/u01/app/oracle/admin/orcl/adump
+ mkdir -p /oracle/u02/DB/orcl/data/ORCL/
+ mkdir -p /oracle/u02/DB/orcl/fra/ORCL/
+ mkdir -p /oracle/u02/DB/orcl/fra
+ 
+ mkdir -p /oracle/u02/DB/orcl/data/
+ mkdir -p /oracle/u02/DB/orcl/temp/
+ mkdir -p /oracle/u02/DB/orcl/redoa/
+ mkdir -p /oracle/u02/DB/orcl/redob/
+ 
+ 
+--Create below Fra directory same as Main server
+ mkdir -p /oracle/u02/DB/orcl/fra/ORCL/autobackup/2024_11_11
+ mkdir -p /oracle/u02/DB/orcl/fra/ORCL/backupset/2024_11_11
+
+--Create archive log location
+ mkdir -p /oracle/u02/DB/orcl/fra/ORCL/archivelog
+
+
+------------------
+:::MAIN SERVER:::
+------------------
+--copy the backup using scp
+cd /oracle/u02/DB/orcl/fra/ORCL/autobackup/2024_11_11
+scp ./* oracle@vm1dr:/oracle/u02/DB/orcl/fra/ORCL/autobackup/2024_11_11
+
+cd /oracle/u02/DB/orcl/fra/ORCL/backupset/2024_11_11
+scp ./* oracle@vm1dr:/oracle/u02/DB/orcl/fra/ORCL/backupset/2024_11_11
+
+cd /oracle/u02/DB/orcl/fra/ORCL/archivelog
+scp -r ./* oracle@vm1dr:/oracle/u02/DB/orcl/fra/ORCL/archivelog
+
+
+------------------
+:::CLONE SERVER:::
+------------------
+lsnrctl start ORCL_LISTENER
+export ORACLE_SID=orcl
+sqlplus / as sysdba
+startup nomount pfile='/oracle/u01/app/oracle/product/19c/dbhome_1/dbs/initorcl.ora';
+exit;
+
+
+------------------
+:::MAIN SERVER:::
+------------------
+-- Get the last copied archivelog file date time
+sqlplus / as sysdba
+
+SQL> set lines 999;
+SQL> col name for a60;
+SQL> SELECT 
+		TO_CHAR(first_time, 'YYYY-MM-DD HH24:MI:SS') AS first_time_formatted,
+		TO_CHAR(next_time, 'YYYY-MM-DD HH24:MI:SS') AS next_time_formatted,
+		name 
+	 FROM 
+		v$archived_log;
+
+
+------------------
+:::MAIN SERVER:::
+------------------
+rman target / auxiliary sys/oracle@ORCL_CLONE
+
+-- backup required for Duplicate INACTIVE in FRA as Source
+RMAN> DUPLICATE TARGET DATABASE TO orcl until time "TO_DATE('2024-11-12 05:14:29', 'YYYY-MM-DD HH24:MI:SS')" SPFILE NOFILENAMECHECK;
+
+-- No backup required Duplicate ACTIVE
+RMAN> DUPLICATE DATABASE TO orcl FROM ACTIVE DATABASE SPFILE NOFILENAMECHECK;
+
+
+** Note:-
+-- edit /etc/oratab.
+-- change Redo log file location if you want as per source
+
+
+------------------
+:::CLONE SERVER:::
+------------------
+rman target /
+RMAN> restore controlfile from '/dbback/DB_Duplicate/control_orcl.bkp';
+
+  
+-- Cross Check
+shut immediate;
+stratup;
+select name , DB_UNIQUE_NAME, OPEN_MODE , LOG_MODE, FORCE_LOGGING, flashback_on, DATABASE_ROLE from v$database;
+select name from v$datafile;
+select name from v$tempfile;
+select member from v$logfile;
+
+
