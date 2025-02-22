@@ -1,0 +1,93 @@
+
+=============================
+Automate RMAN Backups Scripts
+=============================
+
+--| 
+cat /u01/rman/full_backup.sh
+	#!/bin/bash
+
+	. /home/oracle/.bash_profile
+
+	export ORACLE_SID=proddb
+	export ORACLE_HOME=/u01/app/oracle/product/12.2.0.1
+	export DATE=$(date +%y-%m-%d_%H%M%S)
+
+	rman target / log=/u01/rman/${ORACLE_SID}_${DATE}.log << EOF
+	run
+	{
+	allocate channel ch1 device type disk format '/u01/rman/proddb_full_bkp_%u';
+	allocate channel ch2 device type disk format '/u01/rman/proddb_full_bkp_%u';
+	crosscheck backup;
+	delete noprompt obsolete;
+	backup database;
+	backup archivelog all delete input;
+	release channel ch1;
+	release channel ch2;
+	}
+	EOF
+
+
+--| 
+cat /u01/rman/rman_Full_Inc.sh
+	export ORACLE_SID=oradbwr
+	export ORACLE_BASE=/u02/app/oracle
+	export ORACLE_HOME=$ORACLE_BASE/product/19.0.0/dbhome_1
+	export PATH=/usr/sbin:$PATH
+	export PATH=$ORACLE_HOME/bin:$PATH
+
+	rman target / nocatalog log=/u02/backup/RMAN_backup.log << EOF
+	run
+	{
+	allocate channel ch1 device type disk;
+	allocate channel ch2 device type disk;
+	allocate channel ch3 device type disk;
+	allocate channel ch4 device type disk;
+	sql ‘ALTER SYSTEM ARCHIVE LOG CURRENT’;
+	configure retention policy to recovery window of 5 days;
+	CONFIGURE DEVICE TYPE DISK BACKUP TYPE TO COMPRESSED BACKUPSET PARALLELISM 4;
+	CROSSCHECK BACKUP DEVICE TYPE DISK;
+	CROSSCHECK ARCHIVELOG ALL;
+	crosscheck backup;
+	delete noprompt archivelog all backed up 1 times to device type disk;
+	backup incremental level 0 as compressed backupset database archivelog all tag weekly_Full_backup delete input;
+	DELETE NOPROMPT OBSOLETE;
+	DELETE NOPROMPT EXPIRED BACKUP;
+	release channel ch1;
+	release channel ch2;
+	release channel ch3;
+	release channel ch4;
+	}
+	EOF
+
+
+
+--| 
+cat /u01/rman/rman_Full_DB.sh
+	export Backup_Location=/u01/rman_backup/`date +%d-%m-%y`
+	export ORACLE_SID=digital
+	export ORACLE_BASE=/u01/app/oracle
+	export ORACLE_HOME=/u01/app/oracle/product/12.2.0/dbhome_1/
+	export PATH=/usr/sbin:$PATH
+	export PATH=$ORACLE_HOME/bin:$PATH
+
+	date
+	mkdir -p /u01/rman_backup/`date +%d-%m-%y`
+	rman target / nocatalog log=$Backup_Location/LogRMAN.log << EOF
+	run {
+	allocate channel cha1 type disk;
+	crosscheck backup;
+	crosscheck archivelog all;
+	DELETE NOPROMPT EXPIRED ARCHIVELOG ALL;
+	delete noprompt expired backup;
+	delete noprompt obsolete;
+	backup database format '$Backup_Location/digital_`date +%F`_%U_DB.bkp';
+	sql 'alter system archive log current';
+	backup archivelog all format '$Backup_Location/digital_`date +%F`_%U_ArchiveLog.bkp';
+	backup current controlfile format '$Backup_Location/digital_`date +%F`_ControlFile.bkp';
+	release channel cha1;
+	}
+	EOF
+	
+
+
