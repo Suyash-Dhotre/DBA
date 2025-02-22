@@ -1,1 +1,1 @@
-https://support.dbagenesis.com/post/oracle-database-refresh
+https://docs.dbagenesis.com/oracle-database
