@@ -1,0 +1,70 @@
+===================================
+RMAN DB Point-In-Time-Recovery PITR
+===================================
+
+--## Take DB FULL Backup
+
+RMAN> backup database plus archivelog;
+RMAN> list backup of database summary;
+List of Backups
+===============
+Key     TY LV S Device Type Completion Time #Pieces #Copies Compressed Tag
+------- -- -- - ----------- --------------- ------- ------- ---------- ---
+24      B  F  A DISK        25-NOV-24       1       1       NO         TAG20241125T155222
+
+
+--## Demo and simulate failure
+
+SQL> select to_char(sysdate,'YYYY-MM-DD HH24:MI:SS') from dual;
+      TO_CHAR(SYSDATE,'YY
+      -------------------
+      2024-11-25 15:53:21
+
+SQL> create user ngr identified by ngr;
+SQL> grant connect, resource, create session to ngr;
+SQL> alter user ngr quota unlimited on USERS;
+SQL> conn ngr/ngr
+SQL> create table test(serial number(2),name varchar2(5));
+SQL> insert into test values(1,'one');
+SQL> insert into test values(2,'Two');
+SQL> insert into test values(3,'Three');
+SQL> insert into test values(4,'Four');
+SQL> commit;
+
+
+SQL> select name from v$datafile;
+NAME
+--------------------------------------------------------------------------------
+/oracle/u02/DB/rcat/data/RCAT/system01.dbf
+/oracle/u02/DB/rcat/data/RCAT/tbpitr.dbf
+/oracle/u02/DB/rcat/data/RCAT/sysaux01.dbf
+/oracle/u02/DB/rcat/data/RCAT/undotbs01.dbf
+/oracle/u02/DB/rcat/data/RCAT/rmantbs01.dbf
+/oracle/u02/DB/rcat/data/RCAT/users01.dbf
+
+SQL> !rm -rf /oracle/u02/DB/rcat/data/RCAT/*.dbf
+SQL>  select to_char(sysdate,'YYYY-MM-DD HH24:MI:SS') from dual;
+        TO_CHAR(SYSDATE,'YY
+        -------------------
+        2024-11-25 16:00:45
+
+
+
+--## Start RMAN PITR
+SQL> shut abort;
+SQL> startup mount;
+
+rman target /
+RMAN> run
+	  {
+	  RESTORE DATABASE from tag TAG20241125T155222;
+	  RECOVER DATABASE UNTIL TIME "TO_DATE('2024-11-25 15:53:21', 'YYYY-MM-DD HH24:MI:SS')";
+	  sql 'ALTER DATABASE OPEN RESETLOGS';
+	  }
+
+
+** Note:- 
+	If database is in new incarnation due to RESETLOGS, the backups which were taken till now (TAG20241125T155222) are no more useful. 
+	Your take new backup using 
+	RMAN> backup database plus archivelog;
+
