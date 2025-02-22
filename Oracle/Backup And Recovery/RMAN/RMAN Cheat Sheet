@@ -72,7 +72,7 @@ RMAN> backup as compressed backupset database plus archivelog;
 ========
 IMP RMAN 
 ========
-
+list backup of datafile 1;
 list backup summary
 crosscheck backup;
 crosscheck archivelog all;
