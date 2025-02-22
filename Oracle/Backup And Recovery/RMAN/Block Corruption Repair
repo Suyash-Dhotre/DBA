@@ -1,0 +1,27 @@
+=======================
+Block Corruption Repair
+=======================
+
+##<IMP> RMAN Repair Block Corruption
+
+--| Below query gives us list of corrupted blocks
+   
+SQL> COLUMN owner FORMAT A20
+SQL> COLUMN segment_name FORMAT A30
+SQL> SELECT DISTINCT owner, segment_name FROM 
+	 v$database_block_corruption dbc
+	 JOIN dba_extents e 
+	 ON dbc.file# = e.file_id 
+	 AND dbc.block# 
+	 BETWEEN e.block_id and e.block_id+e.blocks-1ORDER BY 1,2;
+
+
+--| Assume that block 121 under datafile 3 is corrupted. Use below command to repair the data block
+
+RMAN> blockrecover datafile 3 block 121;
+
+
+--| Other Block Repair Methods
+	1. Full DB recovery
+	2. Individual datafile recovery
+	3. Drop table and restore if from previous export
