@@ -1,0 +1,185 @@
+
+============
+check backup
+============
+
+====================================
+--| Query to check database backup
+====================================
+
+set linesize 500
+col BACKUP_SIZE for a20
+SELECT
+INPUT_TYPE "BACKUP_TYPE",
+--NVL(INPUT_BYTES/(1024*1024),0)"INPUT_BYTES(MB)",
+--NVL(OUTPUT_BYTES/(1024*1024),0) "OUTPUT_BYTES(MB)",
+STATUS,
+TO_CHAR(START_TIME,'MM/DD/YYYY:hh24:mi:ss') as START_TIME,
+TO_CHAR(END_TIME,'MM/DD/YYYY:hh24:mi:ss') as END_TIME,
+TRUNC((ELAPSED_SECONDS/60),2) "ELAPSED_TIME(Min)",
+--ROUND(COMPRESSION_RATIO,3)"COMPRESSION_RATIO",
+--ROUND(INPUT_BYTES_PER_SEC/(1024*1024),2) "INPUT_BYTES_PER_SEC(MB)",
+--ROUND(OUTPUT_BYTES_PER_SEC/(1024*1024),2) "OUTPUT_BYTES_PER_SEC(MB)",
+--INPUT_BYTES_DISPLAY "INPUT_BYTES_DISPLAY",
+OUTPUT_BYTES_DISPLAY "BACKUP_SIZE",
+OUTPUT_DEVICE_TYPE "OUTPUT_DEVICE"
+--INPUT_BYTES_PER_SEC_DISPLAY "INPUT_BYTES_PER_SEC_DIS",
+--OUTPUT_BYTES_PER_SEC_DISPLAY "OUTPUT_BYTES_PER_SEC_DIS"
+FROM V$RMAN_BACKUP_JOB_DETAILS
+where start_time > SYSDATE -10
+and INPUT_TYPE != 'ARCHIVELOG'
+ORDER BY END_TIME DESC
+/
+
+
+====================================
+--| Query to check archivelog backup
+====================================
+
+set linesize 500
+col BACKUP_SIZE for a20
+SELECT 
+INPUT_TYPE "BACKUP_TYPE",
+--NVL(INPUT_BYTES/(1024*1024),0)"INPUT_BYTES(MB)",
+--NVL(OUTPUT_BYTES/(1024*1024),0) "OUTPUT_BYTES(MB)",
+STATUS,
+TO_CHAR(START_TIME,'MM/DD/YYYY:hh24:mi:ss') as START_TIME,
+TO_CHAR(END_TIME,'MM/DD/YYYY:hh24:mi:ss') as END_TIME,
+TRUNC((ELAPSED_SECONDS/60),2) "ELAPSED_TIME(Min)",
+--ROUND(COMPRESSION_RATIO,3)"COMPRESSION_RATIO",
+--ROUND(INPUT_BYTES_PER_SEC/(1024*1024),2) "INPUT_BYTES_PER_SEC(MB)",
+--ROUND(OUTPUT_BYTES_PER_SEC/(1024*1024),2) "OUTPUT_BYTES_PER_SEC(MB)",
+--INPUT_BYTES_DISPLAY "INPUT_BYTES_DISPLAY",
+OUTPUT_BYTES_DISPLAY "BACKUP_SIZE",
+OUTPUT_DEVICE_TYPE "OUTPUT_DEVICE"
+--INPUT_BYTES_PER_SEC_DISPLAY "INPUT_BYTES_PER_SEC_DIS",
+--OUTPUT_BYTES_PER_SEC_DISPLAY "OUTPUT_BYTES_PER_SEC_DIS"
+FROM V$RMAN_BACKUP_JOB_DETAILS
+where start_time > SYSDATE -10
+and INPUT_TYPE = 'ARCHIVELOG'
+ORDER BY END_TIME DESC
+/
+
+
+
+=========================
+--| Check ALL Backup 
+=========================
+
+set line 190 pages 190
+alter session set nls_date_format='dd-mon-yyyy hh24:mi:ss';
+
+select input_type,SESSION_KEY,START_TIME,END_TIME,OUTPUT_BYTES/1024/1024,ELAPSED_SECONDS,status,OUTPUT_BYTES_PER_SEC/1024/1024 mb_per_sec
+from V$RMAN_BACKUP_JOB_DETAILS
+order by start_time;
+
+
+--| 
+
+set lines 1000 pages 140
+col OutBytesPerSec for a10
+col OUTPUT_BYTES_DISPLAY for a20
+col INPUT_BYTES_DISPLAY for a20
+col TIME_TAKEN_DISPLAY for a20
+col STATUS for a15
+col DEVICE_TYPE for a8
+
+SELECT b.session_key ses_key,
+b.input_type,
+b.status,
+to_char(b.start_time,’DD-MM-YY HH24:MI’) “Start Time”,
+to_char(b.END_TIME,’DD-MM-YY HH24:MI’) “END_TIME”,
+b.time_taken_display,
+b.output_device_type device_type,
+b.input_bytes_display,
+b.output_bytes_display,
+b.output_bytes_per_sec_display “OutBytesPerSec”
+FROM v$rman_backup_job_details b
+WHERE b.start_time > (SYSDATE -7)
+ORDER BY b.start_time desc;
+
+--| 
+
+SELECT 
+TO_CHAR(completion_time, 'YYYY-MON-DD') completion_time, 
+type, round(sum(bytes)/1048576) MB, 
+round(sum(elapsed_seconds)/60) min 2 
+FROM 3 ( 4 
+        SELECT 5 CASE 6 
+        WHEN s.backup_type='L' THEN 'ARCHIVELOG' 7
+        WHEN s.controlfile_included='YES' THEN 'CONTROLFILE' 8 
+        WHEN s.backup_type='D' AND s.incremental_level=0 THEN 'LEVEL0' 9 
+        WHEN s.backup_type='I' AND s.incremental_level=1 THEN 'LEVEL1' 10 
+        END type, 
+        11 TRUNC(s.completion_time) completion_time, 
+        p.bytes, s.elapsed_seconds 12 
+        FROM v$backup_piece p, 
+        v$backup_set s 13 
+        WHERE p.status='A' AND p.recid=s.recid 14 
+        UNION ALL 15 
+        SELECT 'DATAFILECOPY' type, 
+        TRUNC(completion_time), 
+        output_bytes, 0 elapsed_seconds FROM v$backup_copy_details 16 ) 
+17 GROUP BY TO_CHAR(completion_time, 'YYYY-MON-DD'), 
+type 18 ORDER BY 1 ASC,2,3 19 ;
+
+
+
+=========================
+--| Check Total Work Done
+=========================
+
+SELECT SID, SERIAL#, CONTEXT, SOFAR, TOTALWORK,
+ROUND(SOFAR/TOTALWORK*100,2) "%_COMPLETE"
+FROM V$SESSION_LONGOPS
+WHERE OPNAME LIKE 'RMAN%'
+AND OPNAME NOT LIKE '%aggregate%'
+AND TOTALWORK != 0
+AND SOFAR <> TOTALWORK;
+
+
+--| Throughput
+
+SET HEAD OFF
+SELECT ‘RMAN Throughput : ‘||
+ROUND(SUM(v.value/(power(2,30))),1) || ‘ GB so far —> Per Second Throughput = ‘ ||
+ROUND(SUM(v.value /(power(2,30)))/NVL((SELECT MIN(elapsed_seconds)
+FROM v$session_longops
+WHERE opname LIKE ‘RMAN: aggregate input’
+AND sofar != TOTALWORK
+AND elapsed_seconds IS NOT NULL
+),SUM(v.value /(power(2,30)))),2) || ‘ GB’
+FROM gv$sesstat v, v$statname n, gv$session s
+WHERE v.statistic# = n.statistic#
+AND n.name = ‘physical write total bytes’
+AND v.sid = s.sid
+AND v.inst_id = s.inst_id
+AND s.program LIKE ‘rman@%’
+GROUP BY n.name
+/
+
+
+--| How much time still remaining ?
+
+col dbsize_mbytes      for 99,999,990.00 justify right head “DBSIZE_MB”
+col input_mbytes       for 99,999,990.00 justify right head “READ_MB”
+col output_mbytes      for 99,999,990.00 justify right head “WRITTEN_MB”
+col output_device_type for a10           justify left head “DEVICE”
+col complete           for 990.00        justify right head “COMPLETE %” 
+col compression        for 990.00        justify right head “COMPRESS|% ORIG”
+col est_complete       for a20           head “ESTIMATED COMPLETION”
+col recid              for 9999999       head “ID”
+
+select recid
+     , output_device_type
+     , dbsize_mbytes
+     , input_bytes/1024/1024 input_mbytes
+     , output_bytes/1024/1024 output_mbytes
+     , (output_bytes/input_bytes*100) compression
+     , (mbytes_processed/dbsize_mbytes*100) complete
+     , to_char(start_time + (sysdate-start_time)/(mbytes_processed/dbsize_mbytes),’DD-MON-YYYY HH24:MI:SS’) est_complete
+  from v$rman_status rs
+     , (select sum(bytes)/1024/1024 dbsize_mbytes from v$datafile) 
+where status=’RUNNING’
+   and output_device_type is not null
+/
