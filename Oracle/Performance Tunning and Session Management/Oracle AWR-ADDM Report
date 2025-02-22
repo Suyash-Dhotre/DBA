@@ -1,0 +1,18 @@
+==================
+Oracle ADDM Report
+==================
+
+@$ORACLE_HOME/rdbms/admin/awrrpt.sql
+
+@$ORACLE_HOME/rdbms/admin/addmrpt.sql
+	Sample output of ADDM report:
+
+	FINDING: 59% impact (944 seconds)
+	The buffer cache was undersized causing significant additional read I/O.
+
+	RECOMMENDATION 1: DB Configuration, 59% benefit (944 seconds)
+	ACTION: Increase SGA target size by increasing the value of parameter   “sga_target” by 28 M.
+
+	SYMPTOMS THAT LED TO THE FINDING:
+	Wait class User I/O was consuming significant database time. (83% impact [1336 seconds])
+	
