@@ -47,9 +47,9 @@ ORDER BY
     s.last_call_et DESC;
 
 
-==========================================
-Blocking/Locking/ deadlock error ORA-00060
-==========================================
+==============================================
+--# Blocking/Locking/ deadlock error ORA-00060
+==============================================
 
 --| Find Blocked Sessions
 -- Blocking Session
@@ -140,9 +140,9 @@ SELECT 'ALTER SYSTEM KILL SESSION ''' || s.sid || ',' || s.serial# || ''' IMMEDI
 		AND    s.sid='&sid';
 
 
-===========================
-Wait events vs wait classes
-===========================
+===============================
+--# Wait events vs wait classes
+===============================
 
 -- Wait Classes in Oracle
     --------------|---------------------------------------------------
