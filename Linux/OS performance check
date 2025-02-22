@@ -165,4 +165,5 @@ Would you like assistance in analyzing specific outputs?
 
 
 --- 
+ps -ef | grep <oracle-long-pind>
 Kill -9 <pid>
