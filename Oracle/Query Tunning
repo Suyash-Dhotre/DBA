@@ -1,5 +1,6 @@
+===============================
 --# Long running query details
-
+===============================
 SELECT
     s.sid,
     s.serial#,
@@ -29,8 +30,9 @@ ORDER BY
     s.last_call_et DESC;
 
 
-
+===================================================
 --# Check AWR Snapshot take intervals and retention 
+===================================================
 
 -- Check retention and interval
 SELECT
@@ -80,8 +82,9 @@ WHERE begin_interval_time >= TO_DATE('2025-02-01 00:00:00', 'YYYY-MM-DD HH24:MI:
 ORDER BY snap_id;
 
 
-
+==============================================================
 --# Check historical execution of sql_id with plan_hash_value
+==============================================================
 
 SELECT 
     h.begin_interval_time AS snapshot_start_time,
@@ -134,7 +137,60 @@ ORDER BY
     h.begin_interval_time;
 
 
+==================================
+--# Find SQL execution plan change
+==================================
+
+-- Detect and analyze changes in SQL execution plans in Oracle.
+-- If you would like to find out change in SQL plan of a query, 
+-- below script will help you find the SQL plan ID for previous executions and check if there is any change in SQL plan ID.
+
+set pagesize 1000
+set linesize 200
+column begin_interval_time format a20
+column milliseconds_per_execution format 999999990.999
+column rows_per_execution format 999999990.9
+column buffer_gets_per_execution format 999999990.9
+column disk_reads_per_execution format 999999990.9
+break on begin_interval_time skip 1
+SELECT
+ to_char(s.begin_interval_time,'mm/dd hh24:mi')
+ AS begin_interval_time,
+ ss.plan_hash_value,
+ ss.executions_delta,
+ CASE
+ WHEN ss.executions_delta > 0
+ THEN ss.elapsed_time_delta/ss.executions_delta/1000
+ ELSE ss.elapsed_time_delta
+ END AS milliseconds_per_execution,
+ CASE
+ WHEN ss.executions_delta > 0
+ THEN ss.rows_processed_delta/ss.executions_delta
+ ELSE ss.rows_processed_delta
+ END AS rows_per_execution,
+ CASE
+ WHEN ss.executions_delta > 0
+ THEN ss.buffer_gets_delta/ss.executions_delta
+ ELSE ss.buffer_gets_delta
+ END AS buffer_gets_per_execution,
+ CASE
+ WHEN ss.executions_delta > 0
+ THEN ss.disk_reads_delta/ss.executions_delta
+ ELSE ss.disk_reads_delta
+ END AS disk_reads_per_execution
+FROM wrh$_sqlstat ss
+INNER JOIN wrm$_snapshot s ON s.snap_id = ss.snap_id
+WHERE ss.sql_id = '&sql_id'
+AND ss.buffer_gets_delta > 0
+ORDER BY s.snap_id, ss.plan_hash_value;
+
+
+
+
+==========================================================================================
 --# list of all sql_ids with their execution count and resource consumption 
+==========================================================================================
+
 ----------------------------------------------------------------------------------------
 --
 -- File name:   sqlflip1.sql
@@ -182,8 +238,10 @@ and max_etime > nvl(to_number('&min_etime'),.1)
 order by norm_stddev
 /
 
-
+==========================================================================================
 --# Compare multiple plan_hash_value for specific sql_id with all time usages
+==========================================================================================
+
 ----------------------------------------------------------------------------------------
 --
 -- File name:   sqlflip2.sql
@@ -266,10 +324,59 @@ FROM dba_hist_sql_plan
 WHERE sql_id = '<your_sql_id>';
 
 
+==============================
+Automatic SQL Tuning in Oracle
+==============================
+
+-- Database optimizer runs very fast and must select the best execution plan for a query within a fraction of seconds.
+-- Due to time constraint (under normal query execution), sometimes optimizer will choose wrong execution plan for a query. 
+-- We can force to run database optimizer to run a tuning mode so that optimizer can perform more analysis on a given SQL.
+
+-- Note: use sql tuning advisor only on highly resource intensive queries.
+
+-- Create tuning task
+
+DECLARE
+  l_sql_tune_task_id  VARCHAR2(100);
+BEGIN
+  l_sql_tune_task_id := DBMS_SQLTUNE.create_tuning_task (
+            sql_id      => 'fxdbrc4jhqn5r',
+            scope       => DBMS_SQLTUNE.scope_comprehensive,
+            time_limit  => 60,
+            task_name   => 'fxdbrc4jhqn5r_tuning_task',
+            description => 'Tuning task for statement fxdbrc4jhqn5r.');
+  DBMS_OUTPUT.put_line('l_sql_tune_task_id: ' || l_sql_tune_task_id);
+END;
+/
+
+-- Execute tuning task
+
+EXEC DBMS_SQLTUNE.execute_tuning_task(task_name => 'fxdbrc4jhqn5r_tuning_task');
 
 
+-- Status of tuning task
 
+SELECT task_name, status FROM dba_advisor_log WHERE task_name like 'fxdbrc4jhqn5r_tuning_task';
+
+-- Display recommendations
+
+SET LONG 10000;
+SET PAGESIZE 1000
+SET LINESIZE 200
+SELECT DBMS_SQLTUNE.report_tuning_task('fxdbrc4jhqn5r_tuning_task') AS recommendations FROM dual;
+SET PAGESIZE 24
+
+-- Drop tuning task
+
+BEGIN
+  DBMS_SQLTUNE.drop_tuning_task (task_name => 'fxdbrc4jhqn5r_tuning_task');
+END;
+/
+
+
+=================================================
 --# Change the SQL PROFILE of SQL_ID Permanently.
+=================================================
 --------------------------------------------------------------------------------------------------------------------------
 --
 -- File Name : coe_xfr_sql_profile.sql
