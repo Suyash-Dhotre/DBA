@@ -1,3 +1,20 @@
+=========================
+--# Check last user login
+=========================
+select username, timestamp, action_name from dba_audit_session 
+where action_name='LOGON' and 
+rownum<10 and username not in ('SYS','DBSNMP','DUMMY','SYSTEM','RMAN');
+
+==================================
+--# Find Current Session SID in Oracle
+==================================
+-- Find SID in normal database
+SQL> select sid from v$mystat where rownum=1;
+
+-- Find SID in RAC database
+SQL> SELECT SID, SERIAL#,inst_id FROM GV$SESSION WHERE sid=(select sid from v$mystat where rownum=1);
+
+
 ===============================
 --# Long running query details
 ===============================
@@ -30,6 +47,190 @@ ORDER BY
     s.last_call_et DESC;
 
 
+==========================================
+Blocking/Locking/ deadlock error ORA-00060
+==========================================
+
+--| Find Blocked Sessions
+-- Blocking Session
+
+select blocking_session, sid, serial#, wait_class, seconds_in_wait
+from v$session
+where blocking_session is not NULL
+order by blocking_session;
+
+-- Blocking and Blocked session
+
+select a.SID "Blocking Session", b.SID "Blocked Session"  
+from v$lock a, v$lock b 
+where a.SID != b.SID and a.ID1 = b.ID1  and a.ID2 = b.ID2 and 
+b.request > 0 and a.block = 1;
+
+-- Another query that can help you with finding the blocking and blocked sessions
+
+col blocking_status for a120;
+select s1.username || '@' || s1.machine
+ || ' ( SID=' || s1.sid || ' ) is blocking '
+ || s2.username || '@' || s2.machine 
+ || ' ( SID=' || s2.sid || ' ) ' AS blocking_status
+ from v$lock l1, v$session s1, v$lock l2, v$session s2
+ where s1.sid=l1.sid and s2.sid=l2.sid
+ and l1.BLOCK=1 and l2.request > 0
+ and l1.id1 = l2.id1
+ and l2.id2 = l2.id2 ;
+
+
+--| Find Lock Wait Time
+-- To find how long the blocked session is waiting (in minutes)
+
+SELECT 
+  blocking_session "BLOCKING_SESSION",
+  sid "BLOCKED_SESSION",
+  serial# "BLOCKED_SERIAL#", 
+  seconds_in_wait/60 "WAIT_TIME(MINUTES)"
+FROM v$session
+WHERE blocking_session is not NULL
+ORDER BY blocking_session;
+
+
+--| Find Blocked SQL
+-- To check what SQL is being run by the BLOCKED SESSION inside the database OR which SQL command is waiting
+
+SELECT SES.SID, SES.SERIAL# SER#, SES.PROCESS OS_ID, SES.STATUS, SQL.SQL_FULLTEXT
+FROM V$SESSION SES, V$SQL SQL, V$PROCESS PRC
+WHERE
+   SES.SQL_ID=SQL.SQL_ID AND
+   SES.SQL_HASH_VALUE=SQL.HASH_VALUE AND 
+   SES.PADDR=PRC.ADDR AND
+   SES.SID=&Enter_blocked_session_SID;
+
+
+======================
+--# Find Locked Table
+======================
+    -- Run below query to find the table locked, table owner, lock type and other details
+
+col session_id head 'Sid' form 9999
+col object_name head "Table|Locked" form a30
+col oracle_username head "Oracle|Username" form a10 truncate 
+col os_user_name head "OS|Username" form a10 truncate 
+col process head "Client|Process|ID" form 99999999
+col owner head "Table|Owner" form a10
+col mode_held form a15
+select lo.session_id,lo.oracle_username,lo.os_user_name,
+lo.process,do.object_name,do.owner,
+decode(lo.locked_mode,0, 'None',1, 'Null',2, 'Row Share (SS)',
+3, 'Row Excl (SX)',4, 'Share',5, 'Share Row Excl (SSX)',6, 'Exclusive',
+to_char(lo.locked_mode)) mode_held
+from gv$locked_object lo, dba_objects do
+where lo.object_id = do.object_id
+order by 5
+/
+
+
+==========================================
+--# Resolving Locks in Oracle Kill Session
+==========================================
+alter system kill session '38,4245';
+
+SELECT 'ALTER SYSTEM KILL SESSION ''' || s.sid || ',' || s.serial# || ''' IMMEDIATE' AS ddl
+        FROM   v$session s
+        AND    s.blocking_session IS NOT NULL
+        AND    s.username LIKE '&username' 
+		AND    s.sid='&sid';
+
+
+===========================
+Wait events vs wait classes
+===========================
+
+-- Wait Classes in Oracle
+    --------------|---------------------------------------------------
+    Wait Class    | Description                                       
+    --------------|---------------------------------------------------
+    Administrative| Waits due to DBA commands (e.g., index rebuild).  
+    Application   | Waits due to user application code (e.g., locks).  
+    Cluster       | Waits related to RAC resources (e.g., global cache).
+    Commit        | Waits for redo log write confirmation after commit. 
+    Concurrency   | Waits for internal database resources (e.g., latches).
+    Configuration | Waits due to improper database configuration.(e.g, undersized log file sizes, shared pool size)      
+    Idle          | Waits due to inactivity (e.g., waiting for client). 
+    Network       | Waits related to network messaging.                 
+    Other         | Unexpected waits that should not typically occur.   
+    Scheduler     | Waits related to Resource Manager.                  
+    System I/O    | Waits for background process I/O (e.g., DBWR waits). 
+    User I/O      | Waits for user I/O (e.g., file read operations).    
+
+
+-- Find Top Wait Classes
+    -- User below query to get the top wait classes in Oracle database
+
+Select wait_class, sum(time_waited), sum(time_waited)/sum(total_waits)
+Sum_Waits
+From v$system_wait_class
+Group by wait_class
+Order by 3 desc;
+
+
+-- Find Top Wait Events in a Wait Class
+    -- From the above query, supply each wait class into below query to get the top wait events in database with respect to particular wait class
+
+Select a.event, a.total_waits, a.time_waited, a.average_wait
+From v$system_event a, v$event_name b, v$system_wait_class c
+Where a.event_id=b.event_id
+And b.wait_class#=c.wait_class#
+And c.wait_class = '&Enter_Wait_Class'
+order by average_wait desc;
+
+
+=========================
+--# Check Total Work Done
+=========================
+
+SELECT SID, SERIAL#, CONTEXT, SOFAR, TOTALWORK,
+ROUND(SOFAR/TOTALWORK*100,2) "%_COMPLETE"
+FROM V$SESSION_LONGOPS
+WHERE OPNAME LIKE 'RMAN%'
+AND OPNAME NOT LIKE '%aggregate%'
+AND TOTALWORK != 0
+AND SOFAR <> TOTALWORK;
+
+
+=============================================
+--# Find Session Id Running Specific Sql Text
+=============================================
+
+SET LINES 300
+SET PAGES 999
+COL SID FOR 99999
+COL SER# FOR 9999999
+COL OS_ID FOR A5
+COL STATUS FOR A8
+COL SQL_FULLTEXT FOR A60
+SELECT
+   SES.SID,
+   SES.SERIAL# SER#,
+   SES.PROCESS OS_ID,
+   SES.STATUS,
+   SQL.SQL_FULLTEXT
+FROM 
+   V$SESSION SES,
+   V$SQL SQL,
+   V$PROCESS PRC
+WHERE
+   SES.SQL_ID=SQL.SQL_ID AND
+   SES.SQL_HASH_VALUE=SQL.HASH_VALUE AND 
+   SES.PADDR=PRC.ADDR AND
+   UPPER(SQL.SQL_FULLTEXT) LIKE UPPER('ALTER TABLE%SHRINK%'); 
+
+
+=============================================
+--# Find SQL Id of the Statement You Just Ran
+=============================================
+SQL> select prev_sql_id from v$session where sid=sys_context('userenv','sid');
+SQL> select sql_id, sql_text from v$sqltext where sql_id in ('fxdbrc4jhqn5r');
+
+
 ===================================================
 --# Check AWR Snapshot take intervals and retention 
 ===================================================
@@ -42,11 +243,11 @@ FROM
     dba_hist_wr_control;
 
 **Note:
-Default Settings (Oracle):
-  - Default Interval is every 1 hour (`+00000 01:00:00.0`).  
-  - In Oracle 10g/11g, the default retention is 7 days.  
-  - In Oracle 12c/19c/21c, the default retention is 8 days.
-  - Snapshots older than the retention period are automatically purged by the Oracle maintenance tasks
+-- Default Settings (Oracle):
+  -- Default Interval is every 1 hour (`+00000 01:00:00.0`).  
+  -- In Oracle 10g/11g, the default retention is 7 days.  
+  -- In Oracle 12c/19c/21c, the default retention is 8 days.
+  -- Snapshots older than the retention period are automatically purged by the Oracle maintenance tasks
 
 -- eg of changing retaintion and interval
 
@@ -80,6 +281,7 @@ FROM dba_hist_snapshot
 WHERE begin_interval_time >= TO_DATE('2025-02-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')
   AND end_interval_time <= TO_DATE('2025-02-01 23:59:59', 'YYYY-MM-DD HH24:MI:SS')
 ORDER BY snap_id;
+
 
 
 ==============================================================
@@ -186,6 +388,34 @@ ORDER BY s.snap_id, ss.plan_hash_value;
 
 
 
+=====================================
+--# Find top 5 resource intensive SQL
+=====================================
+
+col Rank for a4
+SELECT *
+FROM (SELECT RANK () OVER 
+(PARTITION BY "Snap Day" ORDER BY "Buffer Gets" + "Disk Reads" DESC) AS "Rank", i1.*
+FROM (SELECT TO_CHAR (hs.begin_interval_time, 'MM/DD/YY' ) "Snap Day",
+SUM (shs.executions_delta) "Execs",
+SUM (shs.buffer_gets_delta) "Buffer Gets",
+SUM (shs.disk_reads_delta) "Disk Reads",
+ROUND ( (SUM (shs.buffer_gets_delta)) / SUM (shs.executions_delta), 1 ) "Gets/Exec",
+ROUND ( (SUM (shs.cpu_time_delta) / 1000000) / SUM (shs.executions_delta), 1 ) "CPU/Exec(S)",
+ROUND ( (SUM (shs.iowait_delta) / 1000000) / SUM (shs.executions_delta), 1 ) "IO/Exec(S)",
+shs.sql_id "Sql id",
+REPLACE (CAST (DBMS_LOB.SUBSTR (sht.sql_text, 50) AS VARCHAR (50) ), CHR (10), '' ) "Sql"
+FROM dba_hist_sqlstat shs INNER JOIN dba_hist_sqltext sht
+ON (sht.sql_id = shs.sql_id)
+INNER JOIN dba_hist_snapshot hs
+ON (shs.snap_id = hs.snap_id)
+HAVING SUM (shs.executions_delta) > 0
+GROUP BY shs.sql_id, TO_CHAR (hs.begin_interval_time, 'MM/DD/YY'), 
+CAST (DBMS_LOB.SUBSTR (sht.sql_text, 50) AS VARCHAR (50) )
+ORDER BY "Snap Day" DESC) i1
+ORDER BY "Snap Day" DESC)
+WHERE "Rank" <= 5 AND "Snap Day" = TO_CHAR (SYSDATE, 'MM/DD/YY');
+
 
 ==========================================================================================
 --# list of all sql_ids with their execution count and resource consumption 
@@ -238,6 +468,8 @@ and max_etime > nvl(to_number('&min_etime'),.1)
 order by norm_stddev
 /
 
+
+
 ==========================================================================================
 --# Compare multiple plan_hash_value for specific sql_id with all time usages
 ==========================================================================================
@@ -288,11 +520,19 @@ group by sql_id, plan_hash_value
 order by 5
 /
 
-
-
+==============================================================================
 --# List all plan_hash_value for specific sql_id with detailed execution plan 
+==============================================================================
 
--- Display all stored plans for a SQL_ID
+--| AUTOTRACE –- easy option -- show execution plan after execution
+set autotrace on;
+select * from emp;
+
+--| EXPLAIN PLAN -- show execution plan before execution
+explain plan for select * from emp;
+
+
+--| Display all stored plans for a SQL_ID
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_AWR('<your_sql_id>'));
 
 -- Display a specific plan with advanced formatting
@@ -306,11 +546,11 @@ FROM TABLE(
 );
 
 **Note: 
-- Format: Controls the level of detail in the output:
-  - BASIC: Minimal plan information.
-  - TYPICAL: Default (includes predicates, cost, etc.).
-  - ALL: Maximum detail (includes projections, aliases, etc.).
-  - ADVANCED: Includes outline data and query block
+-- Format: Controls the level of detail in the output:
+  -- BASIC: Minimal plan information.
+  -- TYPICAL: Default (includes predicates, cost, etc.).
+  -- ALL: Maximum detail (includes projections, aliases, etc.).
+  -- ADVANCED: Includes outline data and query block
 
 
 -- Verify SQL exists in AWR:
@@ -323,10 +563,47 @@ SELECT plan_hash_value
 FROM dba_hist_sql_plan 
 WHERE sql_id = '<your_sql_id>';
 
+================
+Enable SQL Trace
+================
 
-==============================
-Automatic SQL Tuning in Oracle
-==============================
+-- We will be enabling SQL trace only for the problematic sessions 
+
+ALTER SESSION SET TIMED_STATISTICS=TRUE;
+ALTER SESSION SET SQL_TRACE=TRUE;
+
+-- Trace File Location: The name of the trace file is <Oracle_SID>_ora_<p.spid>.trc under UDUMP location
+
+SHOW PARAMETER USER_DUMP;
+
+-- Because running the SQL Trace facility increases system overhead, enable it only when tuning SQL statements, and disable it when you are finished
+-- To disable SQL trace
+
+ALTER SESSION SET SQL_TRACE=FALES;
+
+
+--| Run TKPROF
+-- Go to the user dump location and use tkprof to convert trace file into human readable format
+
+tkprof <trace_file> <output_report>
+
+**Note:
+-- Reading TKPROF Report
+    PARSE    : Oracle finds query in shared pool or creates a new plan
+    EXECUTE  : Does the work of query. It is empty for SELECT statement
+    FETCH    : Pulls the data back, empty for update, bulk of work for select
+    Count    : How many times each activity has been performed
+    CPU      : CPU time used by the query
+    ELAPSED  : Wall clock time spent
+    DISK     : Physical I/Os to disk
+    Query    : Blocks read from rollback / undo
+    Current  : Blocks as they exists now
+    Rows     : Number of rows affected
+
+
+==================================
+--# Automatic SQL Tuning in Oracle
+==================================
 
 -- Database optimizer runs very fast and must select the best execution plan for a query within a fraction of seconds.
 -- Due to time constraint (under normal query execution), sometimes optimizer will choose wrong execution plan for a query. 
@@ -372,6 +649,7 @@ BEGIN
   DBMS_SQLTUNE.drop_tuning_task (task_name => 'fxdbrc4jhqn5r_tuning_task');
 END;
 /
+
 
 
 =================================================
