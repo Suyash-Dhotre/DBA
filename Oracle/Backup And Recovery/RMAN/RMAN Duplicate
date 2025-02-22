@@ -168,3 +168,92 @@ select name from v$tempfile;
 select member from v$logfile;
 
 
+
+================
+== Other Options
+================
+
+# Backup files are in matching location to that on the source server.
+# Duplicate database to TARGET's current state using TARGET, CATALOG or both.
+DUPLICATE TARGET DATABASE TO DB11G
+  SPFILE
+  NOFILENAMECHECK;
+
+# Backup files are in matching location to that on the source server.
+# Backup state (no TARGET or CATALOG)
+DUPLICATE TARGET DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+
+# Duplicate database to TARGET's state 4 days ago.
+DUPLICATE TARGET DATABASE TO DB11G
+  UNTIL TIME 'SYSDATE-4'
+  SPFILE
+  NOFILENAMECHECK;
+
+# Backup files are in a different location to that on the source server.
+# Duplicate database to the most recent state possible using the provided backups.
+# Works with just an AUXILIARY connection only.
+DUPLICATE DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+
+# Do a point-in-time clone.
+DUPLICATE DATABASE TO DB11G
+  SPFILE
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK
+  UNTIL TIME "TO_DATE('2014-11-17 07:00:00', 'YYYY-MM-DD HH24:MI:SS')";
+
+###IMP### Alter some SPFILE parameters during the clone. change DB name
+DUPLICATE DATABASE TO MYCLONE
+  SPFILE
+    parameter_value_convert ('DB11G','MYCLONE')
+    set db_file_name_convert='/u01/oradata/db11g/','/u01/oradata/myclone/'
+    set log_file_name_convert='/u01/oradata/db11g/','/u01/oradata/myclone/'
+    set control_files='/u01/oradata/myclone/control01.ctl','/u01/oradata/myclone//control02.ctl','/u01/oradata/myclone/control03.ctl'
+    set db_name='MYCLONE'
+    set log_archive_dest_1='location=/u01/oradata/myclone/arch'
+  BACKUP LOCATION '/source/app/oracle/fast_recovery_area/DB11G'
+  NOFILENAMECHECK;
+  
+  
+###IMP### Active dublicate no backup and copy from source to Destination
+DUPLICATE DATABASE TO DB11G
+  FROM ACTIVE DATABASE
+  SPFILE
+  NOFILENAMECHECK;
+
+
+==============================
+== For Data gard configuration
+==============================
+:- Duplicate primary database via RMAN
+
+:: PRIMARY ::
+
+rman target sys@orcl auxiliary sys@orcl_stb
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY
+		DORECOVER
+		SPFILE
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_config='dg_config=(orcl,orcl_stb)'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		SET standby_file_management='AUTO'
+		BACKUP LOCATION '/dbback/DB_Duplicate/'
+		NOFILENAMECHECK;
+
+(Optional Active one)
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY FROM ACTIVE DATABASE DORECOVER 
+		SPFILE 
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		NOFILENAMECHECK;
+		
+
+
+==
