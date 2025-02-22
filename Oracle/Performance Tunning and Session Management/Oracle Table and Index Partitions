@@ -1,0 +1,290 @@
+=================================
+Oracle Table and Index Partitions
+=================================
+
+#= Crate Table Partitions
+
+CREATE TABLE time_range_sales
+   ( prod_id        NUMBER(6) primary key
+   , cust_id        NUMBER
+   , time_id        DATE
+   , quantity_sold  NUMBER(3)
+   , amount_sold    NUMBER(10,2)
+   )
+PARTITION BY RANGE (time_id)
+ (PARTITION SALES_1998 VALUES LESS THAN (TO_DATE('01-JAN-1999','DD-MON-YYYY')) tablespace users,
+  PARTITION SALES_1999 VALUES LESS THAN (TO_DATE('01-JAN-2000','DD-MON-YYYY')) tablespace examples,
+  PARTITION SALES_2000 VALUES LESS THAN (TO_DATE('01-JAN-2001','DD-MON-YYYY')) tablespace xyz,
+  PARTITION SALES_2001 VALUES LESS THAN (MAXVALUE) tablespace abc
+ ); 
+ 
+ 
+= Query user_tab_partitions
+
+COLUMN high_value FORMAT A20
+SELECT table_name,
+       partition_name,
+       high_value,
+       num_rows
+FROM   user_tab_partitions
+ORDER BY table_name, partition_name;
+
+= Table partition to get records only from the specific partition
+
+select * from TIME_RANGE_SALES partition (SALES_1998);
+select * from TIME_RANGE_SALES partition (SALES_1999);
+select * from TIME_RANGE_SALES partition (SALES_2000);
+select * from TIME_RANGE_SALES partition (SALES_2001);
+
+= Query a partitioned table like a normal table too
+select * from TIME_RANGE_SALES;
+
+
+
+#= Create Partitioned Index
+
+You can create two types of indexes on a partition table:
+= Local Index
+
+CREATE INDEX time_range_sales_indx ON TIME_RANGE_SALES(time_id) LOCAL
+ (PARTITION year_1 TABLESPACE users,
+  PARTITION year_2 TABLESPACE users,
+  PARTITION year_3 TABLESPACE users,
+  PARTITION year_4 TABLESPACE users);  
+ 
+= Global Index
+CREATE INDEX glob_time_range_sales ON TIME_RANGE_SALES(time_id) GLOBAL 
+ PARTITION BY RANGE (time_id)
+ (PARTITION glob_y1 VALUES LESS THAN (TO_DATE('01-JAN-1999','DD-MON-YYYY')),
+  PARTITION glob_y2 VALUES LESS THAN (TO_DATE('01-JAN-2000','DD-MON-YYYY')),
+  PARTITION glob_y3 VALUES LESS THAN (TO_DATE('01-JAN-2001','DD-MON-YYYY')),
+  PARTITION glob_y4 VALUES LESS THAN (MAXVALUE));
+
+= Check Partition Indexes
+
+select INDEX_NAME, PARTITION_NAME from user_ind_partitions;
+
+|------------------------|--------------------------------------------|-----------------------------------------|		
+| Feature                | Local Partitioned Index         			  | Global Partitioned Index       			|
+|------------------------|--------------------------------------------|-----------------------------------------|
+| Partition Alignment    | Matches table partitions     			  | Independent of table partitions  		|
+| Partition Key          | Same as table partition key   			  | Can be different                		|
+| Index Maintenance      | Dropped automatically with table partition | Must be managed separately 				|
+| Query Performance      | Optimized for partition-based queries 	  | Optimized for cross-partition queries 	|
+| Flexibility            | Less flexible but easier to manage 		  | More flexible but requires manual tuning|
+|------------------------|--------------------------------------------|-----------------------------------------|	
+
+	
+	
+#= Online Partition Existing Table (12cR2 onwards)
+
+ALTER TABLE hr.tab1 MODIFY
+PARTITION BY RANGE (transaction_date) (
+PARTITION TRX_2018 VALUES LESS THAN (TIMESTAMP' 2018-12-31 23:59:59.000000000+00:00') tablespace TBS_01,
+PARTITION TRX_2019 VALUES LESS THAN (TIMESTAMP' 2019-12-31 23:59:59.000000000+00:00') tablespace TBS_01,
+PARTITION TRX_2020 VALUES LESS THAN (TIMESTAMP' 2020-12-31 23:59:59.000000000+00:00') tablespace TBS_01,
+PARTITION TRX_2021 VALUES LESS THAN (TIMESTAMP' 2021-12-31 23:59:59.000000000+00:00') tablespace TBS_01
+) ONLINE;
+
+EXEC DBMS_STATS.gather_table_stats('HR', 'TAB1');
+
+- Note: The index on transaction_date column will be automatically converted to locally partitioned index
+
+- check table partitions
+
+SELECT table_name, partition_name, num_rows
+FROM dba_tab_partitions WHERE table_name='TAB1'
+ORDER BY 1,2;
+
+- Check index partitions are automatically created
+
+SELECT index_name, table_name, partitioned, status
+FROM dba_indexes where table_name='TAB1' ORDER BY 1;
+
+SELECT index_name, partition_name, status, NUM_ROWS
+FROM dba_ind_partitions WHERE idex_name='&index_name' ORDER BY 1,2;
+
+
+
+#= Export & Import Partition Table:
+
+- First check if a table is partitioned or not using below query
+
+SQL> select TABLE_NAME, CLUSTER_NAME, PARTITIONED from dba_tables
+where table_name='SALES_NEW';
+
+SQL> select * from sales_new;
+
+- Export the table using Oracle exp utility
+
+exp file=sales_new.exp tables=sales_new
+
+- Rename The Original table
+
+SQL> rename sales_new to sales_new_bkp;
+
+- Create New Partition Table
+
+CREATE TABLE sales_test
+   ( prod_id        NUMBER(6) primary key
+   , cust_id        NUMBER
+   , time_id        DATE
+   , quantity_sold  NUMBER(3)
+   , amount_sold    NUMBER(10,2)
+   )
+PARTITION BY RANGE (time_id)
+ (PARTITION SALES_1998 VALUES LESS THAN (TO_DATE('01-JAN-1999','DD-MON-YYYY')),
+  PARTITION SALES_1999 VALUES LESS THAN (TO_DATE('01-JAN-2000','DD-MON-YYYY')),
+  PARTITION SALES_2000 VALUES LESS THAN (TO_DATE('01-JAN-2001','DD-MON-YYYY')),
+  PARTITION SALES_2001 VALUES LESS THAN (MAXVALUE)
+ );   
+
+- Import Data Into New Partition Table
+
+imp file=sales_new.exp tables=sales_new ignore=y
+
+- Drop The Old Table
+
+DROP TABLE SALES_NEW_BKP;
+
+- Query Partitions From the New Partition Table
+
+select * from SALES_NEW partition (SALES_1998);
+select * from SALES_NEW partition (SALES_1999);
+select * from SALES_NEW partition (SALES_2000);
+select * from SALES_NEW partition (SALES_2001);
+
+SELECT * FROM SALES_NEW;
+
+
+#= Split & Exchange Partition
+
+- Create a test table for this activity and make sure its not a partition table
+
+CREATE TABLE my_table (
+  id           NUMBER,
+  description  VARCHAR2(50)
+);
+
+INSERT INTO my_table (id, description) VALUES (1, 'One');
+INSERT INTO my_table (id, description) VALUES (2, 'Two');
+INSERT INTO my_table (id, description) VALUES (3, 'Three');
+INSERT INTO my_table (id, description) VALUES (4, 'Four');
+COMMIT;
+
+- Now create another single full partition table with only one partition to contain whole table
+
+CREATE TABLE my_table_2 (
+  id           NUMBER,
+  description  VARCHAR2(50)
+)
+PARTITION BY RANGE (id)
+(PARTITION my_table_part VALUES LESS THAN (MAXVALUE));
+
+- Switch original table segment with partition table segment
+
+ALTER TABLE my_table_2
+  EXCHANGE PARTITION my_table_part
+  WITH TABLE my_table
+  WITHOUT VALIDATION;  
+
+- Drop original table and rename partition table
+
+DROP TABLE my_table;
+
+RENAME my_table_2 TO my_table;
+
+- Finally, we can split the new partition table into Multiple partitions
+
+ALTER TABLE my_table SPLIT PARTITION my_table_part AT (3)
+ INTO (PARTITION my_table_part_1,
+       PARTITION my_table_part_2); 
+
+- Check partition details via below query
+
+SELECT table_name,
+       partition_name,
+       high_value,
+       num_rows
+FROM   dba_tab_partitions
+ORDER BY table_name, partition_name;
+
+
+#= Add Partition to Existing Partition Table
+
+- To add a new partition to an existing partitioned table, use below command
+
+ALTER TABLE SALES_NEW 
+ADD PARTITION sales_2002
+values less than (TO_DATE('01-JAN-2003','DD-MON-YYYY'))
+tablespace TBS_01;
+
+- Run below command to check high value of each partition
+
+SELECT partition_name, high_value FROM ALL_TAB_PARTITIONS;
+
+
+#= DBMS_REDEFINITION
+
+Steps to Convert a Non-Partitioned Table into a Partitioned Table
+1. Check if the table can be redefined.
+2. Create an interim table with partitions.
+3. Start the redefinition process.
+4. Synchronize data during redefinition.
+5. Finish redefinition and swap tables.
+6. Cleanup (Drop the interim table).
+
+Example: Convert EMPLOYEES Table into a Partitioned Table
+We will partition the EMPLOYEES table by the DEPARTMENT_ID column using Range Partitioning.
+
+
+-- Step 1: Check If the Table Can Be Redefined
+BEGIN
+    DBMS_REDEFINITION.CAN_REDEF_TABLE('HR', 'EMPLOYEES', DBMS_REDEFINITION.CONS_USE_PK);
+END;
+/
+
+-- Step 2: Create an Interim Partitioned Table
+CREATE TABLE employees_interim
+(
+    employee_id    NUMBER PRIMARY KEY,
+    first_name     VARCHAR2(50),
+    last_name      VARCHAR2(50),
+    email          VARCHAR2(100),
+    phone_number   VARCHAR2(20),
+    hire_date      DATE,
+    job_id         VARCHAR2(20),
+    salary         NUMBER,
+    manager_id     NUMBER,
+    department_id  NUMBER
+)
+PARTITION BY RANGE (department_id)
+(
+    PARTITION emp_part_1 VALUES LESS THAN (50),
+    PARTITION emp_part_2 VALUES LESS THAN (100),
+    PARTITION emp_part_3 VALUES LESS THAN (150),
+    PARTITION emp_part_4 VALUES LESS THAN (MAXVALUE)
+);
+
+-- Step 3: Start the Redefinition Process
+BEGIN
+    DBMS_REDEFINITION.START_REDEF_TABLE('HR', 'EMPLOYEES', 'EMPLOYEES_INTERIM');
+END;
+/
+
+-- Step 4: Synchronize Data During Redefinition
+BEGIN
+    DBMS_REDEFINITION.SYNC_INTERIM_TABLE('HR', 'EMPLOYEES', 'EMPLOYEES_INTERIM');
+END;
+/
+
+-- Step 5: Finish Redefinition and Swap Tables
+BEGIN
+    DBMS_REDEFINITION.FINISH_REDEF_TABLE('HR', 'EMPLOYEES', 'EMPLOYEES_INTERIM');
+END;
+/
+
+-- Step 6: Cleanup - Drop Interim Table (Optional)
+DROP TABLE employees_interim;
+
+
