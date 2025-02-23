@@ -215,15 +215,22 @@ rpm -Uvh ftp://ftp.pbone.net/mirror/archive.fedoraproject.org/epel/8.1.2020-04-2
 #### 4.2.1 TDE Table-space Encryption 
 =====================================
 
+**Note:
+ TABLESPACE_ENCRYPTION = { AUTO_ENABLE | MANUAL_ENABLE | DECRYPT_ONLY } - default Cloud databases: AUTO_ENABLE - On-premises databases: MANUAL_ENABLE -- have high preference
+   1. AUTO_ENABLE – Enables automatic encryption for tablespaces when encryption is supported.
+   2. MANUAL_ENABLE – Requires explicit user action to enable encryption for a tablespace.
+   3. DECRYPT_ONLY – Prevents encryption but allows decryption of already encrypted tablespaces.
+
+ ENCRYPT_NEW_TABLESPACES = { CLOUD_ONLY | ALWAYS | DDL } - default CLOUD_ONLY
+   1. CLOUD_ONLY (Default) – Encryption is enforced for new tablespaces only when the database is hosted in a cloud environment.
+   2. ALWAYS – Encryption is enforced for all newly created tablespaces, regardless of the environment.
+   3. DDL – Encryption is applied only when explicitly specified in the CREATE TABLESPACE statement using the ENCRYPTION clause.
+
+
 =# Online Table space Encryption/Decrypt
 
 -- Create tablespace in PDB database 
 alter session set container = prodpdb1;
-
--- encrypt the tablespace by default need to check the system parameter encrypt_new_tablespaces
--- the encrypt_new_tablespaces parameter have 3 values “CLOUD_ONLY / ALWAYS / DDL.”
--- default value is CLOUD_ONLY if you changed it to ALWAYS will encrypt tablespace with AES128 even if there is no “ENCRYPTION” clause specified when creating the tablespace.
-
 
 CREATE TABLESPACE test_ts DATAFILE SIZE 1M;
 CREATE TABLE EMPLOYEE (ID NUMBER(5),NAME VARCHAR(42),SALARY NUMBER(10)) TABLESPACE test_ts;
@@ -236,14 +243,13 @@ col df_name for a80
 col ts_name for a10
 select df.name df_name ,ts.name ts_name  from v$datafile df join v$tablespace ts on (df.ts# = ts.ts#);
 
+-- Incrypt the tablespace online
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 ALTER TABLESPACE test_ts ENCRYPTION ONLINE USING 'AES256' ENCRYPT;
 
-
--- Decrypt Offline
+-- Decrypt Online
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 ALTER TABLESPACE test_ts ENCRYPTION ONLINE DECRYPT;
-
 
 -- give you more details 
 select ts.name , ENCRYPTIONALG, status, ENCRYPTEDTS  from v$encrypted_tablespaces ets join v$tablespace ts on (ets.ts# = ts.ts#)
@@ -256,27 +262,21 @@ select ts.name , ENCRYPTIONALG, status, ENCRYPTEDTS  from v$encrypted_tablespace
 -- Create tablespace in PDB database 
 alter session set container = prodpdb1;
 
--- encrypt the tablespace by default need to check the system parameter encrypt_new_tablespaces
--- the encrypt_new_tablespaces parameter have 3 values “CLOUD_ONLY / ALWAYS / DDL.”
--- default value is CLOUD_ONLY if you changed it to ALWAYS will encrypt tablespace with AES128 even if there is no “ENCRYPTION” clause specified when creating the tablespace.
-
 CREATE TABLESPACE test_ts DATAFILE SIZE 1M;
 col df_name for a80
 col ts_name for a10
 select df.name df_name ,ts.name ts_name  from v$datafile df join v$tablespace ts on (df.ts# = ts.ts#);
 
+-- Incrypt Tablespace Offline
 alter tablespace test_ts offline normal;
-
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 ALTER TABLESPACE test_ts ENCRYPTION OFFLINE USING 'AES256' ENCRYPT;
 ALTER TABLESPACE test_ts ONLINE;
-
 
 -- Decrypt Offline
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 alter tablespace test_ts offline normal;
 ALTER TABLESPACE test_ts ENCRYPTION ONLINE DECRYPT;
-
 
 -- give you more details 
 select ts.name , ENCRYPTIONALG, status, ENCRYPTEDTS  from v$encrypted_tablespaces ets join v$tablespace ts on (ets.ts# = ts.ts#
