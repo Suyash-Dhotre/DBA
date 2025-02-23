@@ -243,7 +243,7 @@ col df_name for a80
 col ts_name for a10
 select df.name df_name ,ts.name ts_name  from v$datafile df join v$tablespace ts on (df.ts# = ts.ts#);
 
--- Incrypt the tablespace online
+-- Encrypt the tablespace online
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 ALTER TABLESPACE test_ts ENCRYPTION ONLINE USING 'AES256' ENCRYPT;
 
@@ -267,7 +267,7 @@ col df_name for a80
 col ts_name for a10
 select df.name df_name ,ts.name ts_name  from v$datafile df join v$tablespace ts on (df.ts# = ts.ts#);
 
--- Incrypt Tablespace Offline
+-- Encrypt Tablespace Offline
 alter tablespace test_ts offline normal;
 SELECT tablespace_name, encrypted, status FROM dba_tablespaces;
 ALTER TABLESPACE test_ts ENCRYPTION OFFLINE USING 'AES256' ENCRYPT;
@@ -426,7 +426,7 @@ sqlplus tst_user/password@prodpdb1
 **Note: <IMP>
 	If the encrypted column is being indexed, it must be specified without SALT. 
 	If not, we may encounter ORA-28338: cannot encrypt indexed column(s) with salt exception.
-
+     We can't have different encryption algo for different coloum in same table.
 
 
 
