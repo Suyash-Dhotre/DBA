@@ -442,9 +442,44 @@ To work with Key Vault you need to know few things about it:
 - Backup and key distribution is automated  
 
 
-
 ### 4.4 Configure TDE With Key Vault
 
 > TODO
 
+Prerequ-
+	Take DB backup 
+		rman target /
+		BACKUP DATABASE PLUS ARCHIVELOG;
+	Take TDE file location backup '+DATA/wallet/PROD/tde'
+	Make Sure Oracle Vault Client should be installed on all nodes and soft link should be created in $WALLET_ROOT/okv loacion
+	If TDE File in ASM Export it to local File System
+		ADMINISTER KEY MANAGEMENT EXPORT KEYSTORE LOCATION '/tmp/keystore_backup' IDENTIFIED BY "wallet_password" ENCRYPTED BY "export_password"; -- export Entire wallet (keys + secrets + metadata)
+			/tmp/keystore_backup/
+			  	├── ewallet_20231001.p12    # Encrypted backup file
+  				└── cwallet.sso             # Auto-login file (if applicable)
+		ADMINISTER KEY MANAGEMENT EXPORT ENCRYPTION KEYS WITH SECRET "export_secret" TO '/tmp/tde_keys.exp' FROM WALLET "location=+DATA/wallet/PROD/tde"; -- Only TDE master encryption keys (MEKs)
 
+		## cp /tmp/keystore_backup $WALLET_ROOT/tde for local File System
+
+# Below Demo  We will work with Wallet stored on local File System
+
+1) Install OKV Client to $WALLET_ROOT/okv Location or create soft link to it.
+2) Upload the $WALLET_ROOT/tde wallet to OKV : Replace /path/to/tde-wallet with $WALLET_ROOT/tde
+	$OKV_HOME/bin/okvutil upload -t WALLET -l /path/to/tde-wallet -g name_of_wallet_in_Oracle_Key_Vault -v 4
+
+3) Configure TDE for OKV (19c)
+	ALTER SYSTEM SET TDE_CONFIGURATION="KEYSTORE_CONFIGURATION=OKV|FILE" SCOPE=BOTH;
+
+	-- Check wallet type and status
+	SELECT CON_ID, WALLET_TYPE, WALLET_ORDER, STATUS 
+	FROM V$ENCRYPTION_WALLET 
+	WHERE CON_ID <> 2;
+
+4) Migrate Keys (12c)++
+	ADMINISTER KEY MANAGEMENT SET ENCRYPTION KEY IDENTIFIED BY EXTERNAL STORE MIGRATE USING "wallet_password" WITH BACKUP;
+
+5) Open the OKV keystorE
+	ADMINISTER KEY MANAGEMENT SET KEYSTORE OPEN IDENTIFIED BY EXTERNAL STORE;
+
+6) Cross Check
+	SELECT KEY_ID, TAG, KEYSTORE_TYPE FROM V$ENCRYPTION_KEYS;
