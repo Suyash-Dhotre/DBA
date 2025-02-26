@@ -323,3 +323,117 @@ RMAN> DUPLICATE TARGET DATABASE FOR STANDBY FROM ACTIVE DATABASE DORECOVER
 		SET fal_server='orcl'
 		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
 		NOFILENAMECHECK;
+
+
+
+
+==============================>>
+
+1️- Configuring RMAN
+------------------------------------
+• Before performing backups, ensure RMAN is properly configured.
+	Check RMAN Configuration:
+
+• Displays current RMAN settings.
+	SHOW ALL;
+
+• Modify settings if needed using CONFIGURE commands.
+	Set Backup Retention Policy:
+	
+• Ensures backups are kept for 7 days before deletion.
+	CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF 7 DAYS;
+
+• Ensures the control file is backed up automatically
+	Enable Control File Autobackup:
+	CONFIGURE CONTROLFILE AUTOBACKUP ON;
+
+
+2- Performing RMAN Backup
+------------------------------------
+Full Database Backup:
+	BACKUP DATABASE PLUS ARCHIVELOG;
+		• Backs up the entire database along with archive logs.
+
+Incremental Backup (Level 0 - Full):
+	BACKUP INCREMENTAL LEVEL 0 DATABASE;
+		• Creates a baseline full backup.
+
+Incremental Backup (Level 1 - Changes Only):
+	BACKUP INCREMENTAL LEVEL 1 DATABASE;
+		• Captures only changes made since the last backup.
+
+Backup Tablespace Only:
+	BACKUP TABLESPACE users;
+		• Backs up only the users tablespace.
+
+Backup a Specific Datafile:
+	BACKUP DATAFILE 4;
+		• Backs up the datafile with ID 4.
+
+Backup Archive Logs Only:
+	BACKUP ARCHIVELOG ALL;
+		• Backs up all archived redo logs.
+
+Delete Archive Logs After Backup:
+	BACKUP ARCHIVELOG ALL DELETE INPUT;
+		• Deletes archive logs after a successful backup.
+
+
+
+
+3️- Restoring RMAN Backups
+------------------------------------
+Restore and Recover Full Database:
+	SHUTDOWN IMMEDIATE;
+	STARTUP MOUNT;
+	RESTORE DATABASE;
+	RECOVER DATABASE;
+	ALTER DATABASE OPEN;
+		• Restores the full database and applies necessary logs.
+
+Restore Specific Tablespace:
+	SQL> ALTER TABLESPACE users OFFLINE;
+	RMAN> RESTORE TABLESPACE users;
+	RMAN> RECOVER TABLESPACE users;
+	SQL> ALTER TABLESPACE users ONLINE;
+		• Restores and recovers a specific tablespace.
+
+Restore a Single Datafile:
+	SQL> ALTER DATABASE DATAFILE '/u01/oradata/users01.dbf' OFFLINE;
+	RMAN> RESTORE DATAFILE '/u01/oradata/users01.dbf';
+	RMAN> RECOVER DATAFILE '/u01/oradata/users01.dbf';
+	SQL> ALTER DATABASE DATAFILE '/u01/oradata/users01.dbf' ONLINE;
+		• Restores and recovers a single corrupted datafile.
+
+Restore Control File and SPFILE:
+	STARTUP NOMOUNT;
+	RESTORE CONTROLFILE FROM AUTOBACKUP;
+	ALTER DATABASE MOUNT;
+	RESTORE SPFILE FROM AUTOBACKUP;
+		• Restores the control file and SPFILE from an automatic backup.
+
+Startup with PFILE and NOMOUNT:
+	STARTUP NOMOUNT PFILE='/path/to/init.ora';
+		• Starts the database in NOMOUNT state using a specified PFILE.
+
+Catalog Backups into RMAN Repository:
+	CATALOG START WITH '/backup/location/';
+		• Registers existing backups in RMAN repository.
+Resynchronize the Recovery Catalog:
+	RESYNC CATALOG;
+		• Ensures the recovery catalog is up to date with control file records.
+
+
+
+
+4️- Validating and Monitoring Backups
+------------------------------------
+Validate Backup Without Restoring:
+	RESTORE DATABASE VALIDATE;
+		• Ensures the backup is usable without restoring it.
+List RMAN Backups:
+	LIST BACKUP SUMMARY;
+		• Displays an overview of existing RMAN backups.
+Delete Obsolete Backups:
+	DELETE OBSOLETE;
+		• Removes backups that are no longer needed based on the retention policy.
