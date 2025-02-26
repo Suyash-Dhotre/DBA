@@ -1,0 +1,152 @@
+=================================
+How to Check Oracle Instance Size
+=================================
+
+## One Instance Size
+
+	SQL> Show parameter memory_target;
+	SQL> show parameter memory_max_target;
+
+## Separate SGA and PGA
+
+	SQL> show parameter sga_target;
+	SQL> show parameter sga_max_size;
+	SQL> show parameter pga_aggregate_target;
+	SQL> show parameter pga_aggregate_limit;
+
+i.e Instance Size=SGA_TARGET+PGA_AGGREGATE_TARGET
+PGA_AGGREGATE_LIMIT =(2 * PGA_AGGREGATE_TARGET)
+
+
+====================
+Manage instance Size
+====================
+SGA_TARGET and SGA_MAX_SIZE:
+	The SGA_TARGET defines the total size of SGA and SGA_MAX_SIZE define the total max RAM SGA_TARGET can take. 
+	Example, if server RAM is 10 GB, SGA_TARGET is 3 GB and SGA_MAX_SIZE is 5 GB. This means that during heavy workloads, Oracle can max assign 5 GB RAM to SGA.
+
+SGA_TARGET parameter is a dynamic parameter
+	SQL> show parameter sga_target;
+	SQL> alter system set sga_target = 10G;
+
+SGA_MAX_SIZE is a static parameter and cannot be changed immediately
+	SQL> show parameter sga_max_size;
+	SQL> alter system set sga_max_size = 12G scope=spfile;
+	
+	
+	
+MEMORY_TARGET and MEMORY_MAX_TARGET
+	From 11g onward, you do not need to manage SGA and PGA separately. 
+	You can allocate MEMORY_TARGET parameter and oracle will handle both SGA + PGA. 
+	You do not even need to set SGA_TARGET or SGA_MAX_SIZE.
+
+	e.g.
+	Let us assume we have 16 GB RAM on a server and we want to allocate 5 GB to Oracle. 
+	This can be simple done by setting MEMORY_TARGET to 5 GB. 
+	MEMORY_MAX_TARGET defines the maximum value MEMORY_TARGET can go.
+
+
+MEMORY_TARGET is a dynamic parameter
+	SQL> show parameter memory_target;
+	SQL> alter system set memory_target = 5G;
+
+MEMORY_MAX_TARGET is a static parameter
+	SQL> show parameter memory_max_target;
+	SQL> alter system set memory_max_target = 7G scope=spfile;
+	
+	
+Note:::
+If you set MEMORY_TARGET:
+	- SGA_TARGET, SGA_MAX_SIZE and PGA_AGGREGATE_TARGET are set to 0, 60% of memory mentioned in MEMORY_TARGET is allocated to SGA and rest 40% is kept for PGA
+	- SGA_TARGET and PGA_AGGREGATE_TARGET are set to non-zero values, these values will be considered minimum values.
+	- SGA_TARGET is set to non zero value and PGA_AGGREGATE_TARGET is not set. Still these values will be autotuned and PGA_AGGREGATE_TARGET will be initialized with value of (MEMORY_TARGET-SGA_TARGET).
+	- PGA_AGGREGATE_TARGET is set and SGA_TARGET is not set. Still both parameters will be autotunes. SGA_TARGET will be initialized to a value of (MEMORY_TARGET-PGA_AGGREGATE_TARGET).
+	
+	
+	
+Query to find memory used by oracle::::
+	SQL> select decode( grouping(nm), 1, 'total', nm ) nm, round(sum(val/1024/1024)) mb
+		 from
+		 (
+		 select 'sga' nm, sum(value) val
+		 from v$sga
+		 union all
+		 select 'pga', sum(a.value)
+		 from v$sesstat a, v$statname b
+		 where b.name = 'session pga memory'
+		 and a.statistic# = b.statistic#
+		 )
+		 group by rollup(nm);
+
+
+Query to find SGA components size:
+	SQL> SELECT * FROM v$sgainfo;
+	
+	
+
+***ERRORS:
+**ORA-00845: MEMORY_TARGET not supported on this system 
+-->
+The new Automatic Memory Management functionality uses /dev/shm on Linux for SGA and PGA management. 
+The errors occur if either MEMORY_TARGET or MEMORY_MAX_TARGET is configured larger than the configured /dev/shm size, or if /dev/shm is mounted incorrectly.
+
+Temporary solution
+	df -kh /dev/shm/
+	mount -t tmpfs shmfs -o size=7g /dev/shm
+	cat /etc/mtab
+
+parmanet solution
+	vi /etc/fstab
+	tmpfs   /dev/shm   tmpfs  defaults,size=7G 0 0
+	sudo mount -o remount /dev/shm
+	systemctl daemon-reload
+	
+
+
+**ORA-27104: system-defined limits for shared memory was misconfigured
+-->
+Increase the RAM if not specified and update below kernal parameter
+
+ipcs -lm
+	------ Shared Memory Limits --------
+	max number of segments = 4096
+	max seg size (kbytes) = 4294967296
+	max total shared memory (kbytes) = 4294967296 	==> 4398046511104 byte ==> 4GB
+	min seg size (bytes) = 1
+
+
+cat 99-oracle-database-preinstall-19c-sysctl.conf | grep kernel.shm
+	# oracle-database-preinstall-19c setting for kernel.shmmni is 4096
+	kernel.shmmni = 4096
+	# oracle-database-preinstall-19c setting for kernel.shmall is 1073741824 on x86_64
+	kernel.shmall = 1073741824
+	# oracle-database-preinstall-19c setting for kernel.shmmax is 4398046511104 ==> 4294967296 kbyte ==> 4 GB on x86_64
+	kernel.shmmax = 4398046511104
+
+
+vi 99-oracle-database-preinstall-19c-sysctl.conf
+	kernel.shmmax = 8589934592       # Increase this to 8 GB or more as needed
+	kernel.shmall = 2097152          # Increase this to match total memory (in pages, e.g., 2 GB)
+
+
+sudo sysctl -p /etc/sysctl.d/99-oracle-database-preinstall-19c-sysctl.conf
+
+
+##OR RUN AFTER ADDING PHY/Virtual RAM :- yum reinstall -y oracle-database-preinstall-19c.x86_64
+
+
+
+**sga_max_size to Zero error
+	Memory_target=2g
+	memory_max_target=2g
+	sga_target=0
+	pga_aggregate_target=0
+	sga_max_size = 2g 		--> automatically came --> alter system reset sga_max_size scope=spfile sid='*'; -- reboot DB
+
+SQL> create pfile form spfile;
+SQL> alter system set memory_max_target=2G scope=spfile;
+SQL> shut immediate;
+SQL> alter system set memory_target=1500M scope=both;
+SQL> alter system reset sga_max_size scope=spfile sid='*'; -- if it is other than memory_max_target size;
+SQL> alter system set pga_aggregate_target=0 scope=both;
+
