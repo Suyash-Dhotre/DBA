@@ -1,0 +1,118 @@
+
+==============================
+Reclaim Unused Space in Oracle
+==============================
+
+## Reclaim Space from Table Segment
+
+:- Run below query to find top 20 largest segments inside a database
+	SQL> COLUMN owner FORMAT A30
+	SQL> COLUMN segment_name FORMAT A30
+	SQL> COLUMN tablespace_name FORMAT A30
+
+	SQL> SELECT * FROM (SELECT segment_type, segment_name, owner, tablespace_name, bytes/1024/1024 size_mb 
+		 FROM dba_segments ORDER BY 5 DESC)
+		 WHERE  ROWNUM <= 20;
+
+:- To reclaim unused space from a table segment, first enable row movement
+	SQL> ALTER TABLE hr.employees ENABLE ROW MOVEMENT;
+
+:- Recover the unused space and reset the high water mark (HWM)
+	SQL> ALTER TABLE hr.employees SHRINK SPACE CASCADE;
+	
+	
+## Reclaim Space from Index Segment
+
+:- First analyze if an index segment requires rebuild because its resource intensive process
+	SQL> ANALYZE INDEX idx_empid VALIDATE STRUCTURE;
+	SQL> SELECT name,height,lf_rows,lf_blks,del_lf_rows FROM INDEX_STATS;
+   
+		  NAME          HEIGHT      LF_ROWS    LF_BLKS    DEL_LF_ROW
+		  ------------- ----------- ---------- ---------- ----------
+		  IDX_EMPID               2          1          3          6 
+		   
+		  1 row selected.
+  
+:- Rebuild index only if you see HEIGHT is above 4 and Deleted Leaf Row is less than 20. You can simply rebuild an index to reclaim space
+	SQL> ALTER INDEX idx_empid REBUILD ONLINE;
+
+
+## Reclaim Space from LOB Segment (LOBs store a variety of data such as audio, video, documents, and so on)
+
+:- Run below query to find top 20 largest LOB segments inside database
+	SQL> SET LINESIZE 200
+	SQL> COLUMN owner FORMAT A30
+	SQL> COLUMN table_name FORMAT A30
+	SQL> COLUMN column_name FORMAT A30
+	SQL> COLUMN segment_name FORMAT A30
+	SQL> COLUMN tablespace_name FORMAT A30
+	SQL> COLUMN size_mb FORMAT 99999999.00
+	
+	SQL> SELECT * FROM (SELECT l.owner,l.table_name,l.column_name,l.segment_name,l.tablespace_name,ROUND(s.bytes/1024/1024,2) size_mb 
+		 FROM dba_lobs l JOIN dba_segments s ON s.owner = l.owner AND s.segment_name = l.segment_name ORDER BY 6 DESC)
+		 WHERE  ROWNUM <= 20;
+
+:- Reclaiming space for a LOB segment is separate from table segment. You must shrink LOB segment separately
+	SQL> ALTER TABLE table_name MODIFY LOB(lob_column) (SHRINK SPACE CASCADE);
+	
+
+## Reclaim Space from Datafile
+
+:- We will first run Possible Saving Report that will list out the data files along with possible savings in MBs
+	SQL> set verify off
+	SQL> column file_name format a50 word_wrapped
+	SQL> column smallest format 999,990 heading "Smallest|Possible Size(MB)"
+	SQL> column currsize format 999,990 heading "Current|Size(MB)"
+	SQL> column savings  format 999,990 heading "Possible|Savings(MB)"
+	SQL> break on report
+	SQL> compute sum of savings on report
+	SQL> column value new_val blksize
+	SQL> select value from v$parameter where name = 'db_block_size';
+		 /
+	SQL> select file_name,
+		 	   ceil( (nvl(hwm,1)*&&blksize)/1024/1024 ) smallest,
+		 	   ceil( blocks*&&blksize/1024/1024) currsize,
+		 	   ceil( blocks*&&blksize/1024/1024) -
+		 	   ceil( (nvl(hwm,1)*&&blksize)/1024/1024 ) savings
+		 from dba_data_files a,
+		 	 ( select file_id, max(block_id+blocks-1) hwm
+		 		 from dba_extents
+		 		group by file_id ) b
+		 where a.file_id = b.file_id(+) order by savings desc
+		 /
+
+:- Alter Tablespace Coalesce: Even though SMON performs tablespace coalesce time to time, still our first step is to try it out and see if it works for us
+	SQL> alter tablespace users coalesce;
+
+:- Now try to shrink the datafile
+	SQL> ALTER DATABASE DATAFILE 72 RESIZE 1G;
+		  ALTER DATABASE DATAFILE 72 RESIZE 1G
+		  *
+		  ERROR at line 1:
+		  ORA-03297: file contains used data beyond requested RESIZE value 
+
+:- Purge Tablespace: Objects belonging to a tablespace might reside under Recyclebin which does not allow you to shrink the datafile. We must remove the tablespace specific segments from recycle bin first
+	SQL> purge tablespace users;
+
+:- Lets try to shrink the datafile
+	SQL> ALTER DATABASE DATAFILE 72 RESIZE 1G;
+		  ALTER DATABASE DATAFILE 72 RESIZE 1G
+		  *
+		  ERROR at line 1:
+		  ORA-03297: file contains used data beyond requested RESIZE value 
+
+:- Purge Recyclebin: The PURGE TABLESPACE command only removes recyclebin segments belonging to the currently connected user. There might be other users who have deleted objects from the tablespace that reside in recyclebin. Its a good idea to purge recyclebin as sysdba
+	SQL> purge recyclebin;
+
+:- Let's resize the datafile
+	SQL> ALTER DATABASE DATAFILE 72 RESIZE 1G;
+		  Database altered.
+		  
+		  
+## Reclaim Space from Undo Tablespace
+
+:- Reclaiming space from UNDO tablespace is very simple. Create a new undo tablespace and drop the old one
+	SQL> CREATE UNDO TABLESPACE undo2 DATAFILE '/u01/orcl/undo02.dbf' SIZE 1G;
+	SQL> ALTER SYSTEM SET UNDO_TABLESPACE=undo2;
+	SQL> DROP TABLESPACE undo1 INCLUDING CONTENTS AND DATAFILES;
+	
