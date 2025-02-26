@@ -39,4 +39,4 @@
 4. **Daily Operations**: `ls`, `cd`, `mkdir`, `rm`.  
 5. **Upgrades/Compatibility**: `chdg`, `volset`.  
 
-Let me know if you need further details! 😊
+
