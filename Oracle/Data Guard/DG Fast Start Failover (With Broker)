@@ -1,0 +1,80 @@
+==========================================================
+Enable Fast Start Failover Data Guard Broker (With Broker)
+==========================================================
+Note: Flash backup should be on on DR and PRIMARY. Stop MRP process to start Flashback on DR then Start MRP Again
+ 
+## Check StaticConnectIdentifier
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> show database orcl StaticConnectIdentifier;
+DGMGRL> show database orcl_stb StaticConnectIdentifier;
+
+--If StaticConnectIdentifier is blank
+:: PRIMARY ::
+ALTER SYSTEM SET local_listener='(ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.101)(PORT = 1521))';
+:: DR ::
+ALTER SYSTEM SET LOCAL_LISTENER='(ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))'; 	
+
+
+
+## Define FastStartFailoverTarget
+::PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> SHOW FAST_START FAILOVER
+DGMGRL> EDIT DATABASE orcl SET PROPERTY FastStartFailoverTarget = 'orcl_stb';
+DGMGRL> EDIT DATABASE orcl_stb SET PROPERTY FastStartFailoverTarget = 'orcl';
+DGMGRL> show database verbose orcl;
+DGMGRL> show database verbose orcl_stb;
+
+## Define FastStartFailoverThreshold
+DGMGRL> EDIT CONFIGURATION SET PROPERTY FastStartFailoverThreshold=30;
+DGMGRL> show fast_start failover
+
+## Define FastStartFailoverLagLimit : We can optionally define how much time (in seconds) data we are ready to lose in case the Data Guard is in Max Performance Mode
+DGMGRL> EDIT CONFIGURATION SET PROPERTY FastStartFailoverLagLimit = 30;	
+
+## Enable FSFO
+:: DR ::
+dgmgrl sys/oracle@orcl_stb
+DGMGRL> ENABLE FAST_START FAILOVER;
+DGMGRL> show configuration;
+DGMGRL> start observer; -- nohup dgmgrl sys/oracle@orcl_stb "start observer file='/home/oracle/fsfo.dat'" -logfile $HOME/observer.log &
+
+## Disable FSFO
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> DISABLE FAST_START FAILOVER;
+
+dgmgrl sys/sys@orcl_stb
+DGMGRL> stop observer;
+
+
+:-: Test FSFO Configuration :-: 
+
+## Simulate failure
+:: orcl ::
+sqlplus / as sysdba
+SQL> shut abort;     	
+
+
+:: On new primary (orcl_stb) ::
+sqlplus / as sysdba
+SQL> select name, open_mode, db_unique_name from v$database;
+
+## Reinstate Failed Primary
+	:Note: Do not open the database as it will be switched to physical standby
+	
+:: On failed primary (orcl):: 
+sqlplus / as sysdba
+SQL> startup mount;
+
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+
+:: On current primary (proddb_st) ::
+dgmgrl sys/sys@proddb_st
+DGMGRL> show configuration;
+DGMGRL> switchover to orcl;
+
+
+
