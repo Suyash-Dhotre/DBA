@@ -1,0 +1,171 @@
+=====================================================================================================
+Configuring Oracle Data Guard Broker for High Availability from manual to Enable DGMGRL (With Broker) 
+=====================================================================================================
+
+PRIMARY - Up and Running
+DR - Mount
+ 
+## Add listner entry
+:: PRIMARY ::
+vi $ORACLE_HOME/network/admin/listener.ora
+	LISTENER_ORCLDB_DG =
+	 (DESCRIPTION_LIST =
+	   (DESCRIPTION =
+		 (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.101)(PORT = 1521))
+		 (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1521))
+	   )
+	 )
+
+	SID_LIST_LISTENER_ORCLDB_DG=
+	 (SID_LIST=
+	   (SID_DESC=
+		 (GLOBAL_DBNAME=orcl)
+		 (SID_NAME=orcl)
+		 (ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1)
+	   )
+	   (SID_DESC=
+		 (GLOBAL_DBNAME=orcl_DGMGRL)
+		 (SID_NAME=orcl)
+		 (ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1)
+	   )
+	 )   
+
+
+:: DR ::
+vi $ORACLE_HOME/network/admin/listener.ora
+	LISTENER_ORCLDB_DG_STB =
+	 (DESCRIPTION_LIST =
+	   (DESCRIPTION =
+		 (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+		 (ADDRESS = (PROTOCOL = IPC)(KEY = EXTPROC1521))
+	   )
+	 )
+
+	SID_LIST_LISTENER_ORCLDB_DG_STB=
+	 (SID_LIST=
+	   (SID_DESC=
+		 (GLOBAL_DBNAME=orcl_stb)
+		 (SID_NAME=orcl)
+		 (ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1)
+	   )
+	   (SID_DESC=
+		 (GLOBAL_DBNAME=orcl_stb_DGMGRL)
+		 (SID_NAME=orcl)
+		 (ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1)
+	   )
+	 )   
+	 
+	 
+## Add Tns Entry
+:: PRIMARY and DR ::
+vi $ORACLE_HOME/network/admin/tnsnames.ora
+	orcl =
+	  (DESCRIPTION =
+			(ADDRESS_LIST =
+			  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.101)(PORT = 1521))
+			)
+			(CONNECT_DATA =
+			  (SID = orcl)
+			)
+	  )
+
+	orcl_stb =
+	  (DESCRIPTION =
+			(ADDRESS_LIST =
+			  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+			)
+			(CONNECT_DATA =
+			  (SID = orcl)
+			)
+
+
+## Stop MRP on standby
+:: DR ::
+SQL> alter database recover managed standby database cancel;
+SQL> alter system set LOG_ARCHIVE_DEST_2='' SCOPE=BOTH sid='*';
+
+:: PRIMARY ::
+SQL> alter system set LOG_ARCHIVE_DEST_2='' SCOPE=BOTH sid='*';
+
+
+## Enable broker
+:: PRIMARY ::
+SQL> alter system set dg_broker_start=true;
+SQL> show parameter dg_broker_start;
+
+:: DR ::
+SQL> alter system set dg_broker_start=true;
+SQL> show parameter dg_broker_start;
+
+
+## Register primary with broker
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> create configuration orcl as primary database is orcl connect identifier is orcl;
+DGMGRL> show configuration;
+DGMGRL> add database orcl_stb as connect identifier is orcl_stb;
+DGMGRL> show configuration;
+
+
+## Enable Data Guard broker
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> ENABLE CONFIGURATION;
+DGMGRL> SHOW CONFIGURATION;
+DGMGRL> SHOW DATABASE orcl;
+DGMGRL> SHOW DATABASE orcl_stb;
+
+
+## Verify standby configuration
+:: DR ::
+SQL> select process, status, sequence# from v$managed_standby;
+SQL> select sequence#, applied, first_time, next_time, name as filename from v$archived_log order by sequence#;
+SQL> select * from v$dataguard_status order by timestamp;
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+:: PRIMARY ::
+SQL> select sequence#, first_time, next_time, applied, archived from v$archived_log where name = 'orcl_stb' order by first_time;
+SQL> select STATUS, GAP_STATUS from V$ARCHIVE_DEST_STATUS where DEST_ID = 2;
+SQL> archive log list;
+SQL> select * from v$dataguard_status order by timestamp;
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+
+## Manage Redo Apply via Broker
+:-Stop log apply:
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+DGMGRL> show database orcl_stb;
+DGMGRL> edit database orcl_stb set state=APPLY-OFF;
+DGMGRL> show database orcl_stb;
+
+:-Start log apply:
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+DGMGRL> show database orcl_stb;
+DGMGRL> edit database orcl_stb set state=APPLY-ON;
+DGMGRL> show database orcl_stb;
+
+
+## Start/stop log shipping via Broker
+:-Disable log shipping/transport:
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+DGMGRL> show database orcl;
+DGMGRL> edit database orcl set state=TRANSPORT-OFF;
+DGMGRL> show database orcl;
+
+:-Enable log shipping/transport:
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+DGMGRL> show database orcl;
+DGMGRL> edit database orcl set state=TRANSPORT-ON;
+DGMGRL> show database orcl;
+
+
+## Set Archive log Deletion Policy
+:: PRIMARY and DR ::
+rman target / 
+RMAN> configure archivelog deletion policy to applied on all standby;
+RMAN> backup archivelog delete all input;
+
