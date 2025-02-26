@@ -1,0 +1,378 @@
+====================
+Table SIZE in oracle
+====================
+
+:- Check users/schema & space used
+	SQL> select owner, sum(bytes)/1024/1024 Size_MB from dba_segments group  by owner;
+
+:- Find largest table in oracle
+	SQL> SELECT * FROM
+		 (select 
+		  SEGMENT_NAME, 
+		  SEGMENT_TYPE, 
+		  BYTES/1024/1024/1024 GB, 
+		  TABLESPACE_NAME 
+		 from 
+		  dba_segments
+		 order by 3 desc ) WHERE
+		 ROWNUM <= 10;
+		 
+:- Check table size in oracle 
+	SQL> select segment_name,segment_type, sum(bytes/1024/1024/1024) GB
+		 from dba_segments
+		 where segment_name='&Your_Table_Name' 
+		 group by segment_name,segment_type; 
+		 
+
+
+===========================
+Table Compression in Oracle
+===========================
+
+= Create compressed table
+- You must add COMPRESS clause while creating a table. By default, every table is created with NOCOMPRESS option
+
+CREATE TABLE COMP_TEST(
+  id number(4), 
+  std_name varchar2(20)
+)
+COMPRESS;
+
+
+- Check compression status
+
+SELECT TABLE_NAME, COMPRESSION FROM DBA_TABLES WHERE TABLE_NAME LIKE 'COMP_TEST';
+
+
+- Change compression status
+- You can always change compression status of an existing table.
+
+ALTER TABLE COMP_TEST NOCOMPRESS;
+ALTER TABLE COMP_TEST COMPRESS;
+
+- Note: if you are enabling compression for an existing table, this will not affect the existing data inside table. Only the new data inserted will be compressed.
+- If you want to compress existing data inside the table, then you must perform move operation
+
+ALTER TABLE COMP_TEST MOVE NOCOMPRESS;
+ALTER TABLE COMP_TEST MOVE COMPRESS;
+
+
+= Compress partitions
+- When you use COMPRESS clause while creating a table with partitions, then all the partitions will be by default be COMPRESSED
+
+CREATE TABLE COMP_PART_TEST(
+  ID NUMBER(4),
+  STD_NAME VARCHAR2(20),
+  JOIN_DATE DATE NOT NULL,
+)
+COMPRESS
+PARTITION BY RANGE (join_date) (
+  PARTITION comp_part_1 VALUES LESS THAN (TO_DATE('01/01/2016','DD/MM/YYYY')),
+  PARTITION comp_part_2 VALUES LESS THAN (MAXVALUE)
+);
+
+
+- You can compress even individual partitions too
+
+CREATE TABLE COMP_PART_TEST(
+  ID NUMBER(4),
+  STD_NAME VARCHAR2(20),
+  JOIN_DATE DATE NOT NULL,
+)
+NOCOMPRESS
+PARTITION BY RANGE (join_date) (
+  PARTITION comp_part_1 VALUES LESS THAN (TO_DATE('01/01/2016','DD/MM/YYYY')) COMPRESS,
+  PARTITION comp_part_2 VALUES LESS THAN (MAXVALUE)
+);  
+
+
+- Check partition compression
+
+SELECT partition_name, compression FROM user_tab_partitions WHERE  table_name = 'COMP_PART_TEST' ORDER BY 1;
+
+
+- Change partition compress type
+
+ALTER TABLE comp_part_test MOVE PARTITION comp_part_2 COMPRESS;
+
+
+= See space savings with compress
+- Now that you have used compress option for a table, you must be able to see the block savings. First gather statistics
+
+EXEC DBMS_STATS.gather_schema_stats(USER, cascade => TRUE);
+
+- Run below command to know exact block usage. 
+- Make sure to run below command before you compress a table so that you are able to see the difference in BLOCKS column
+
+SELECT table_name,
+       partition_name,
+       compression,
+       num_rows,
+       blocks,
+       empty_blocks
+FROM   user_tab_partitions
+WHERE  table_name = 'COMP_TEST'
+ORDER BY 1;
+
+
+= Considerations
+
+1. Compression is not applied to LOB columns
+2. Compression does speed up data reads
+3. There is overhead on CPU for data loading
+4. The default (basic compression) is used only for direct path load
+5. To enable compression for all operations, use COMPRESS FOR ALL OPERATIONS clause
+6. Do not use basic compression for OLTP operations
+
+
+======================
+Oracle Segment Advisor
+======================
+
+== Analyze table & index again
+- Now that we have delete half of the rows, let us gather stats for table and index again
+
+ANALYZE TABLE seg_table COMPUTE STATISTICS;
+ANALYZE INDEX seg_index COMPUTE STATISTICS;
+
+== Let us check the size of each segment (table and index)
+- Note: even after deleting half of the records, the segment size will still show same as it was before delete.
+
+SELECT SEGMENT_TYPE, SEGMENT_NAME, ROUND(BYTES/1024/1024,1) MB, BLOCKS, 
+EXTENTS FROM   DBA_SEGMENTS 
+WHERE  SEGMENT_NAME IN ('SEG_TABLE','SEG_INDEX');
+
+
+- Run Oracle segment advisor
+
+== Create advisor task for table
+
+SET SERVEROUTOUT ON
+DECLARE
+   TSK_ID          NUMBER;
+   TSK_NAME        VARCHAR2(100);
+   TSK_DESCRIPTION VARCHAR2(500);
+   OBJ_ID          NUMBER;
+BEGIN
+   TSK_NAME        := 'ANALYZE_TABLE_TASK';
+   TSK_DESCRIPTION := 'Segment advice for SEG_TABLE';
+   
+   -- 1. Create a Task
+   DBMS_ADVISOR.CREATE_TASK(
+      ADVISOR_NAME => 'Segment Advisor',
+      TASK_ID      => TSK_ID,
+      TASK_NAME    => TSK_NAME,
+      TASK_DESC    => TSK_DESCRIPTION);
+      
+   -- 2. Assign the object to the task 
+   DBMS_ADVISOR.CREATE_OBJECT(
+      TASK_NAME    => TSK_NAME,
+      OBJECT_TYPE  => 'TABLE',
+      ATTR1        => 'SYS',
+      ATTR2        => 'SEG_TABLE',
+      ATTR3        => NULL,
+      ATTR4        => NULL,
+      ATTR5        => NULL,
+      OBJECT_ID    => OBJ_ID);
+
+   -- 3. Set the task parameters
+   DBMS_ADVISOR.SET_TASK_PARAMETER(
+      TASK_NAME    => TSK_NAME,
+      PARAMETER    => 'recommend_all',
+      VALUE        => 'TRUE');
+
+   -- 4. Execute the task 
+   DBMS_ADVISOR.EXECUTE_TASK(TSK_NAME);
+   
+END;
+/
+
+
+== Create advisor task for index
+
+SET SERVEROUTOUT ON
+DECLARE
+   TSK_ID          NUMBER;
+   TSK_NAME        VARCHAR2(100);
+   TSK_DESCRIPTION VARCHAR2(500);
+   OBJ_ID          NUMBER;
+BEGIN
+   TSK_NAME        := 'ANALYZE_INDEX_TASK';
+   TSK_DESCRIPTION := 'Segment advice for SEG_INDEX';
+   
+   -- 1. Create a Task
+   DBMS_ADVISOR.CREATE_TASK(
+      ADVISOR_NAME => 'Segment Advisor',
+      TASK_ID      => TSK_ID,
+      TASK_NAME    => TSK_NAME,
+      TASK_DESC    => TSK_DESCRIPTION);
+      
+   -- 2. Assign the object to the task 
+   DBMS_ADVISOR.CREATE_OBJECT(
+      TASK_NAME    => TSK_NAME,
+      OBJECT_TYPE  => 'INDEX',
+      ATTR1        => 'SYS',
+      ATTR2        => 'SEG_INDEX',
+      ATTR3        => NULL,
+      ATTR4        => NULL,
+      ATTR5        => NULL,
+      OBJECT_ID    => OBJ_ID);
+
+   -- 3. Set the task parameters
+   DBMS_ADVISOR.SET_TASK_PARAMETER(
+      TASK_NAME    => TSK_NAME,
+      PARAMETER    => 'recommend_all',
+      VALUE        => 'TRUE');
+
+   -- 4. Execute the task 
+   DBMS_ADVISOR.EXECUTE_TASK(TSK_NAME);
+   
+END;
+/
+
+
+== Verify tasks are completed
+
+SELECT TASK_NAME, 
+       STATUS 
+FROM   DBA_ADVISOR_TASKS 
+WHERE  ADVISOR_NAME='Segment Advisor' AND 
+       TASK_NAME IN ('ANALYZE_TABLE_TASK','ANALYZE_INDEX_TASK');
+
+
+
+== Review segment advisor
+
+Let us check what Oracle segment advisor has to say
+
+SET LINES 300
+SET PAGES 999
+COL SEGNAME FOR A15
+COL PARTITION FOR A10
+COL TYPE FOR A10
+COL MESSAGE FOR A60
+SELECT DAO.ATTR2 SEGNAME, 
+       DAO.ATTR3 PARTITION, 
+       DAO.TYPE, 
+       DAF.MESSAGE 
+FROM   DBA_ADVISOR_FINDINGS DAF, 
+       DBA_ADVISOR_OBJECTS DAO 
+WHERE  DAO.TASK_ID = DAF.TASK_ID AND 
+       DAO.OBJECT_ID = DAF.OBJECT_ID AND 
+       DAF.TASK_NAME IN ('ANALYZE_TABLE_TASK','ANALYZE_INDEX_TASK');
+	   
+	   
+== Shrink table cascade
+- Use below command to shrink table but before that you must enable row movement
+- Note: the CASCADE option will shrink space for associated indexes with table. No need to run separate command for index.
+
+ALTER TABLE SEG_TABLE ENABLE ROW MOVEMENT;
+ALTER TABLE SEG_TABLE SHRINK SPACE CASCADE;
+ALTER TABLE SEG_TABLE DISABLE ROW MOVEMENT;
+
+
+== Analyze table & index size
+- Post shrinking table and index, let us gather stats and check segment space savings
+
+ANALYZE TABLE seg_table COMPUTE STATISTICS;
+ANALYZE INDEX seg_index COMPUTE STATISTICS;
+Let us check the size of each segment (table and index)
+
+SELECT SEGMENT_TYPE, SEGMENT_NAME, ROUND(BYTES/1024/1024,1) MB, BLOCKS, 
+EXTENTS FROM   DBA_SEGMENTS 
+WHERE  SEGMENT_NAME IN ('SEG_TABLE','SEG_INDEX');
+
+
+
+== Deallocate space
+- Now that we have shrink table and index, we can release the deallocated space to the tablespace so that new data can be inserted
+
+ALTER TABLE seg_table DEALLOCATE UNUSED;
+ALTER INDEX seg_index DEALLOCATE UNUSED;
+
+
+== you can delete the advisor tasks that you created earlier
+
+EXEC DBMS_ADVISOR.DELETE_TASK(TASK_NAME => 'ANALYZE_TABLE_TASK');
+EXEC DBMS_ADVISOR.DELETE_TASK(TASK_NAME => 'ANALYZE_INDEX_TASK');
+
+
+
+====================================
+Remove Table Fragmentation in Oracle
+====================================
+
+#= Gather Table Stats
+-If you have recently gathered table stats, then skip to next step, else gather table stats
+
+EXEC dbms_stats.gather_table_stats
+	(ownname => 'TABLE_OWNER', 
+	 tabname => 'TABLE_NAME', 
+	 cascade => true, 
+	 estimate_percent => 10,
+	 method_opt=>'for all indexed columns size 1', 
+	 granularity => 'ALL', degree => 1);
+
+
+#= Check Table Size
+- Use below query to get table size from dba_segments
+
+select sum(bytes)/1024/1024/1024 from dba_segments where segment_name='&TABLE_NAME';
+
+- Now find out actual table size, fragmentation size and fragmentation percentage using below query
+
+select table_name,avg_row_len,round(((blocks*16/1024)),2)||'MB' "TOTAL_SIZE",
+round((num_rows*avg_row_len/1024/1024),2)||'Mb' "ACTUAL_SIZE",
+round(((blocks*16/1024)-(num_rows*avg_row_len/1024/1024)),2) ||'MB' "FRAGMENTED_SPACE",
+(round(((blocks*16/1024)-(num_rows*avg_row_len/1024/1024)),2)/round(((blocks*16/1024)),2))*100 "percentage"
+from all_tables WHERE table_name='&TABLE_NAME';
+
+- Note: Proceed with de-fragmentation only if you see percentage above 20%
+
+#= Remove Fragmentation
+- Use below query to remove fragmentation from the table
+
+alter table <table_name> move;  
+
+#= Rebuild Indexes on Table
+
+alter index index_name rebuild online;
+
+#= Gather Stats Again
+
+EXEC dbms_stats.gather_table_stats
+	(ownname => 'TABLE_OWNER', 
+	 tabname => 'TABLE_NAME', 
+	 cascade => true, 
+	 estimate_percent => 10,
+	 method_opt=>'for all indexed columns size 1', 
+	 granularity => 'ALL', degree => 1);
+	 
+#= Re-check fragmented space again
+
+select table_name,avg_row_len,round(((blocks*16/1024)),2)||'MB' "TOTAL_SIZE",
+round((num_rows*avg_row_len/1024/1024),2)||'Mb' "ACTUAL_SIZE",
+round(((blocks*16/1024)-(num_rows*avg_row_len/1024/1024)),2) ||'MB' "FRAGMENTED_SPACE",
+(round(((blocks*16/1024)-(num_rows*avg_row_len/1024/1024)),2)/round(((blocks*16/1024)),2))*100 "percentage"
+from all_tables WHERE table_name='&TABLE_NAME';
+
+
+================
+When to Use What
+================
+-----------------------------------------
+| Operation       	| Defragments Data 	| Reclaims Space 		   | Requires Index Rebuild 	  | Moves Rows (Changes ROWID)| Requires ROW MOVEMENT |
+|----------------  	|----------------	  |---------------		   |---------------------		    |---------------------		  |------------------		|
+| MOVE          	  | ✅ 			        	| ✅ 					         | ✅ (must rebuild) 			    | ✅ 					            	| ❌ 					|
+| SHRINK SPACE    	| ✅ 				        | ✅ 				      	   | ❌ (indexes remain valid) 	| ✅ 						            | ✅ 					|
+| DEALLOCATE UNUSED | ❌ 		        		| ✅ (only unused extents) | ❌ 							      | ❌ 					            	| ❌ 					|
+
+-----------------------------------------
+
+✅ WHEN TO USE EACH METHOD?
+-----------------------------------------
+- Use **MOVE** if you need to **fully reorganize** the table and remove fragmentation.
+- Use **SHRINK SPACE** if you need to **compact data and reclaim space online**.
+- Use **DEALLOCATE UNUSED** if you just want to **release unused space without affecting data placement**.
+
+
