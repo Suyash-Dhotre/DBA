@@ -1,0 +1,379 @@
+
+===================================
+Estimate flashback destination size
+===================================
+
+select to_char(COMPLETION_TIME,'DD-MON-YYYY') Arch_Date,count(*) No#_Logs,
+sum((BLOCKS*512)/1024/1024/1024) Arch_LogSize_GB 
+from v$archived_log 
+where to_char(COMPLETION_TIME,'DD-MON-YYYY')>=trunc(sysdate-7) and DEST_ID=1
+group by to_char(COMPLETION_TIME,'DD-MON-YYYY')
+order by to_char(COMPLETION_TIME,'DD-MON-YYYY');
+
+
+Note:
+Method to estimate flashback space
+	- Check the archive generation size via above query
+	- Take the average per day size of archives generated
+	- Multiply the average archive size with x number of days
+	- Ask storage team to add the required space for flashback file system
+
+e.g.
+	Let us assume the average archive log files size generated per day is 5 GB. 
+	Your application team wants you to enable FLASHBACK for 4 days. 
+	In this case you will need Approx 20 GB (5GB X 4Days) of space for flashback logs
+	
+	
+
+
+
+
+================
+Oracle Flashback
+================
+
+## Flashback dropped table
+
+SQL> conn suyash/suyash
+Connected.
+SQL> SHOW RECYCLEBIN;
+SQL>
+SQL> select * from test;
+
+    SERIAL NAME
+---------- -----
+         1 one
+         2 Two
+         3 Three
+         4 Four
+
+SQL>
+SQL> drop table test;
+
+Table dropped.
+
+SQL> SHOW RECYCLEBIN;
+ORIGINAL NAME    RECYCLEBIN NAME                OBJECT TYPE  DROP TIME
+---------------- ------------------------------ ------------ -------------------
+TEST             BIN$J+v3yOh5EB/gY2Y4qMCoQg==$0 TABLE        2024-11-27:15:39:53
+SQL>
+SQL> FLASHBACK TABLE TEST TO BEFORE DROP;
+
+Flashback complete.
+
+SQL> SHOW RECYCLEBIN;
+SQL> select * from test;
+
+    SERIAL NAME
+---------- -----
+         1 one
+         2 Two
+         3 Three
+         4 Four
+
+SQL> drop table test;
+
+Table dropped.
+
+SQL> commit;
+
+Commit complete.
+
+SQL> SHOW RECYCLEBIN;
+ORIGINAL NAME    RECYCLEBIN NAME                OBJECT TYPE  DROP TIME
+---------------- ------------------------------ ------------ -------------------
+TEST             BIN$J+v3yOh6EB/gY2Y4qMCoQg==$0 TABLE        2024-11-27:15:41:10
+SQL>
+SQL> FLASHBACK TABLE TEST TO BEFORE DROP;
+
+Flashback complete.
+
+SQL>  SHOW RECYCLEBIN;
+SQL> select * from test;
+
+    SERIAL NAME
+---------- -----
+         1 one
+         2 Two
+         3 Three
+         4 Four
+
+SQL> drop table test;
+
+Table dropped.
+
+SQL>
+SQL> show recyclebin;
+ORIGINAL NAME    RECYCLEBIN NAME                OBJECT TYPE  DROP TIME
+---------------- ------------------------------ ------------ -------------------
+TEST             BIN$J+v3yOh7EB/gY2Y4qMCoQg==$0 TABLE        2024-11-27:15:43:01
+SQL>
+SQL> FLASHBACK TABLE TEST TO BEFORE DROP RENAME TO NEW_TEST;
+
+Flashback complete.
+
+SQL> show recyclebin;
+SQL>
+SQL> select * from new_test;
+
+    SERIAL NAME
+---------- -----
+         1 one
+         2 Two
+         3 Three
+         4 Four
+
+SQL>
+SQL> select * from test;
+select * from test
+              *
+ERROR at line 1:
+ORA-00942: table or view does not exist
+
+
+
+
+## Flashback table to particular SCN in past
+
+-- Before you can flashback table, you must enable row movement
+	ALTER TABLE NEW_TEST ENABLE ROW MOVEMENT;
+	FLASHBACK TABLE EMP TO SCN <scn_no>;
+	FLASHBACK TABLE HR.EMPLOYEES TO TIMESTAMP TO_TIMESTAMP(‘2016-05-12 18:30:00’, ‘YYYY-MM-DD HH24:MI:SS’);
+
+
+-- Note: for flashback table, enabling FLASHBACK DATABASE is not required at all
+
+
+<--Demo-->
+
+SQL> conn suyash/suyash
+Connected.
+SQL>
+SQL> select * from t;
+
+        ID
+----------
+         1
+         2
+         3
+
+SQL>
+SQL> alter table t enable row movement;
+
+Table altered.
+
+SQL>
+SQL>
+SQL> select to_char(sysdate,'YYYY-MM-DD HH24:MI:SS') from dual;
+
+TO_CHAR(SYSDATE,'YY
+-------------------
+2024-11-28 07:36:25
+
+SQL> select * from t;
+
+        ID
+----------
+         1
+         2
+         3
+
+SQL>
+SQL> insert into t values(4);
+
+1 row created.
+
+SQL> insert into t values(5);
+
+1 row created.
+
+SQL> select * from t;
+
+        ID
+----------
+         4
+         5
+         1
+         2
+         3
+
+SQL>
+SQL> select to_char(sysdate,'YYYY-MM-DD HH24:MI:SS') from dual;
+
+TO_CHAR(SYSDATE,'YY
+-------------------
+2024-11-28 07:38:35
+
+SQL>
+SQL>
+SQL> FLASHBACK TABLE t TO TIMESTAMP TO_DATE('2024-11-28 07:38:00', 'YYYY-MM-DD HH24:MI:SS');
+
+Flashback complete.
+
+SQL> SELECT * FROM T;
+
+        ID
+----------
+         1
+         2
+         3
+
+SQL>
+SQL> ALTER TABLE t DISABLE ROW MOVEMENT;
+
+Table altered.
+
+SQL>
+
+
+
+## Flashback Database
+
+-: Make sure DB_RECOVERY_FILE_DEST parameter is set. This is the location where Oracle will store flashback logs
+SQL> alter system set db_recovery_file_dest='/oracle/u02/DB/rcat/fra' SCOPE=spfile;
+SQL> alter system set db_recovery_file_dest_size=8256M SCOPE=spfile;
+SQL> show parameter recover;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+db_recovery_file_dest                string      /oracle/u02/DB/rcat/fra
+db_recovery_file_dest_size           big integer 8256M
+db_unrecoverable_scn_tracking        boolean     TRUE
+recovery_parallelism                 integer     0
+remote_recovery_file_dest            string
+
+
+-: Set the DB_FLASHBACK_RETENTION_TARGET parameter which specifies the upper limit (in minutes) on how far back in time the database can be flashed back
+SQL> alter system set db_flashback_retention_target=1440; -- 1440 is 24hr default
+SQL> show parameter flashback
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+db_flashback_retention_target        integer     1440
+
+SQL> select flashback_on from v$database;
+
+FLASHBACK_ON
+------------------
+NO
+SQL>
+
+
+-: Enable Flashback Database
+SQL> shut immediate;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL>
+SQL> startup mount;
+ORACLE instance started.
+
+Total System Global Area 1526722880 bytes
+Fixed Size                  8896832 bytes
+Variable Size             889192448 bytes
+Database Buffers          620756992 bytes
+Redo Buffers                7876608 bytes
+Database mounted.
+SQL>
+SQL> alter database flashback on;
+
+Database altered.
+
+SQL>
+SQL> alter database open;
+
+Database altered.
+
+SQL>
+SQL> select flashback_on from v$database;
+
+FLASHBACK_ON
+------------------
+YES
+
+SQL> SELECT current_scn, SYSTIMESTAMP FROM v$database;
+
+CURRENT_SCN SYSTIMESTAMP
+----------- ---------------------------------------------------------------------------
+    2063677 28-NOV-24 08.11.15.553397 AM -05:00
+SQL>
+
+
+-: Create user for demo
+
+SQL> create user flash_usr identified by flash_usr;
+
+User created.
+
+SQL> grant connect, resource to flash_usr;
+
+Grant succeeded.
+
+SQL> conn flash_usr/flash_usr;
+Connected.
+SQL> show user;
+USER is "FLASH_USR"
+SQL>
+
+
+-: Flashback Database to SCN or Timestamp
+
+SQL> shut immediate;
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL>
+SQL> startup mount;
+ORACLE instance started.
+
+Total System Global Area 1526722880 bytes
+Fixed Size                  8896832 bytes
+Variable Size             889192448 bytes
+Database Buffers          620756992 bytes
+Redo Buffers                7876608 bytes
+Database mounted.
+SQL>
+SQL> Flashback database to scn 2063677;
+
+Flashback complete.
+
+SQL> Alter database open resetlogs;
+
+Database altered.
+
+SQL> conn flash_usr/flash_usr;
+ERROR:
+ORA-01017: invalid username/password; logon denied
+
+Warning: You are no longer connected to ORACLE.
+SQL>
+
+
+-- Note:- also can use
+SQL> Flashback database to scn 2063677;
+SQL> FLASHBACK DATABASE TO TIMESTAMP TO_TIMESTAMP('2024-11-28 08:11:15', 'YYYY-MM-DD HH24:MI:SS');
+
+
+
+:-: SCN :-:
+
+SQL> select current_scn from v$database;
+
+CURRENT_SCN
+-----------
+    2062175
+
+SQL> select scn_to_timestamp(current_scn) from v$database;
+
+SCN_TO_TIMESTAMP(CURRENT_SCN)
+---------------------------------------------------------------------------
+28-NOV-24 07.58.11.000000000 AM
+
+SQL> set lines 300
+SQL> SELECT current_scn, SYSTIMESTAMP FROM v$database;
+
+CURRENT_SCN SYSTIMESTAMP
+----------- ---------------------------------------------------------------------------
+    2062635 28-NOV-24 08.00.06.754073 AM -05:00
+
+SQL>
