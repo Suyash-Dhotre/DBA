@@ -1,0 +1,100 @@
+===================================================
+Oracle Data Guard Protection Modes (Without Broker)
+===================================================
+
+:: Redo Transport Modes and Protection Levels
+
+Protection Mode       | Redo Transport Mode | Acknowledgment | Comments
+----------------------|---------------------|----------------|--------------------------------------------------------------
+Maximum Protection    | SYNC                | AFFIRM         | Zero data loss; primary shuts down if no standby is reachable.
+Maximum Availability  | SYNC                | AFFIRM         | Zero data loss if standby is reachable; primary continues if standby fails.
+Maximum Performance   | ASYNC               | NOAFFIRM       | Best performance; possible data loss.
+Maximum Performance   | SYNC                | NOAFFIRM       | Redo is sent synchronously, but primary does not wait for acknowledgment that redo is written to disk.
+Maximum Performance   | ASYNC               | AFFIRM         | Redo is sent asynchronously, but the standby acknowledges once redo is written to disk.
+
+
+:: PRIMARY ::
+SQL> SELECT PROTECTION_MODE FROM V$DATABASE;
+SQL> SELECT DEST_ID, TARGET, TRANSMIT_MODE, VALID_NOW, STATUS, AFFIRM  FROM V$ARCHIVE_DEST;
+SQL> show parameter LOG_ARCHIVE_DEST_2
+
+## Switch to MAXIMIZE PERFORMANCE Protection Mode
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl_stb ASYNC NOAFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl_stb';
+ALTER DATABASE SET STANDBY DATABASE TO MAXIMIZE PERFORMANCE;
+
+## Switch to MAXIMIZE AVAILABILITY Protection Mode
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl_stb SYNC AFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl_stb';
+ALTER DATABASE SET STANDBY DATABASE TO MAXIMIZE AVAILABILITY;
+
+## Switch to MAXIMIZE PROTECTION Protection Mode
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl_stb SYNC AFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl_stb';
+ALTER DATABASE SET STANDBY DATABASE TO MAXIMIZE PROTECTION;
+
+
+:: DR ::
+SQL> ELECT THREAD#, SEQUENCE#, APPLIED FROM V$ARCHIVED_LOG ORDER BY SEQUENCE#;
+SQL> SELECT PROCESS, STATUS, THREAD#, SEQUENCE# FROM V$MANAGED_STANDBY;
+
+:-If you need to restart redo log application:
+SQL> alter database recover managed standby database cancel;
+SQL> alter database recover managed standby database disconnect;
+
+:: DR ::
+(OPTIONAL) 
+## Switch to MAXIMIZE PERFORMANCE Protection Mode (SET ON STANDBY)
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl ASYNC NOAFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl';
+
+## Switch to MAXIMIZE AVAILABILITY Protection Mode (SET ON STANDBY)
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl SYNC AFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl';
+
+## Switch to MAXIMIZE PROTECTION Protection Mode (SET ON STANDBY)
+ALTER SYSTEM SET LOG_ARCHIVE_DEST_2='SERVICE=orcl SYNC AFFIRM VALID_FOR=(ONLINE_LOGFILES,PRIMARY_ROLE) DB_UNIQUE_NAME=orcl';
+
+
+
+
+================================================
+Oracle Data Guard Protection Modes (With Broker)
+================================================
+
+:: Redo Transport Modes and Protection Levels
+
+Protection Mode       | Redo Transport Mode | Acknowledgment | Comments
+----------------------|---------------------|----------------|--------------------------------------------------------------
+Maximum Protection    | SYNC                | AFFIRM         | Zero data loss; primary shuts down if no standby is reachable.
+Maximum Availability  | SYNC                | AFFIRM         | Zero data loss if standby is reachable; primary continues if standby fails.
+Maximum Performance   | ASYNC               | NOAFFIRM       | Best performance; possible data loss.
+
+:: Note:
+	By default, the protection mode is MAX PERFORMANCE. If you look above, MAX PERFORMANCE uses ASYNC redo transport and rest other protection modes uses SYNC protection mode.
+	Also, looking at MAX PROTECTION and MAX AVAILABILITY, we can say that the MAX PROTECTION mode is not used in real time. The main reason is if standby unavailable, primary will shut down.
+	The ultimate protection modes you must use are: MAX PERFORMANCE and MAX AVAILABILITY!
+
+
+## Switch from Max Performance to Max Availability Protection Mode
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration 
+DGMGRL> show database orcl 
+DGMGRL> show database orcl_stb 
+DGMGRL> edit database orcl_stb set state=apply-on;
+
+DGMGRL> EDIT DATABASE orcl_stb SET PROPERTY LogXptMode='SYNC'; 
+DGMGRL> EDIT CONFIGURATION SET PROTECTION MODE AS MaxAvailability;
+
+
+## Switch from Max Availability to Max Performance Protection Mode
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration 
+DGMGRL> show database orcl 
+DGMGRL> show database orcl_stb 
+DGMGRL> edit database orcl_stb set state=apply-on;
+
+DGMGRL> EDIT DATABASE orcl_stb SET PROPERTY LogXptMode='ASYNC'; 
+DGMGRL> EDIT CONFIGURATION SET PROTECTION MODE AS MaxPerformance;
+
+
+
+
+
+
