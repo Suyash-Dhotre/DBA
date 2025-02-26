@@ -1,0 +1,122 @@
+===========================================================
+Convert Physical Standby Into Logical Standby (With Broker)
+===========================================================
+
+## Primary Database Changes
+
+:: PRIMARY ::
+dgmgrl sys/sys@orcl
+DGMGRL> show configuration
+
+Configuration - orcl
+
+  Protection Mode: MaxPerformance
+  Members:
+  orcl     - Primary database
+    orcl_stb - (*) Physical standby database
+
+Fast-Start Failover: DISABLED
+
+Configuration Status:
+SUCCESS   (status updated 59 seconds ago)
+
+
+:-In the primary database, retrieve the list of objects that are not supported
+SQL> set pagesize 25;
+SQL> column owner format a5;
+SQL> select distinct owner, table_name from dba_logstdby_unsupported order by owner,table_name;
+
+:-Check the reason behind those unsupported objects
+SQL> select column_name,data_type from dba_logstdby_unsupported where owner='OE' and table_name= 'CUSTOMERS';
+
+:-Identify the unsupported schemas on primary
+SQL> Col owner format a20;
+SQL> select owner from dba_logstdby_skip where statement_opt = 'INTERNAL SCHEMA';
+
+:-Make sure each table row in primary database can be uniquely identified. To fix the table, make sure you add a primary key
+SQL> SELECT OWNER, TABLE_NAME,BAD_COLUMN FROM DBA_LOGSTDBY_NOT_UNIQUE;
+
+:-Redo Apply needs to be stopped on the Physical Standby now
+DGMGRL> edit database orcl_stb set state = apply-off;
+
+:-Build Log Miner directory on primary
+SQL> exec dbms_logstdby.build
+
+
+## Open Physical Standby
+
+:: DR ::
+SQL> alter database recover to logical standby orcl_stb;
+SQL> shutdown immediate
+SQL> startup mount
+SQL> alter database open resetlogs;
+SQL> select name, open_mode, db_unique_name, database_role, guard_status from v$database;
+
+
+## Data Guard Broker Changes
+
+:: PRIMARY ::
+:-Now we need to remove existing physical standby database from the configuration and add the new logical standby database
+dgmgrl sys/sys@orcl
+DGMGRL> remove database orcl_stb;
+
+
+:: DR ::
+:-Start Logical Apply Service on standby server
+SQL> alter database start logical standby apply immediate;
+
+:-Now add the new logical standby to the broker configuration
+DGMGRL> add database orcl_stb as connect identifier is orcl_stb;
+DGMGRL> enable database orcl_stb 
+
+
+:: PRIMARY ::
+:-Let’s check the configuration once again
+dgmgrl sys/sys@orcl
+DGMGRL> show configuration;
+
+Configuration - orcl
+
+  Protection Mode: MaxPerformance
+  Members:
+  orcl     - Primary database
+    orcl_stb - Logical standby database
+
+Fast-Start Failover: DISABLED
+
+Configuration Status:
+SUCCESS   (status updated 5 seconds ago)
+
+
+## Verify logical standby
+
+:: DR ::
+:-You cannot see the LSP process under v$managed_standby view but you can check the process at OS level
+ps -ef|grep lsp
+
+:-Query to check if logical standby is applying the transactions
+SQL> SELECT name, value FROM v$logstdby_stats;
+
+Note:- Two simple ways to check logical standby is working fine
+		1. Create a table (not with sys schema) in primary and switch logfile. Wait and see if table reflects on standby
+		2. Monitor the logical standby alert log
+	LSP [Logical Standby ]:
+		It comes into play for logical dataguard only. 
+		It controls the application of archived redo log information to the logical standby database. 
+		LSP process will transform redo data into sql statements and then these sql statements will be applied to logical standby database.
+		
+		
+## Start/stop Logical Standby
+
+:: PRIMARY ::
+SQL> Alter system switch logfile;
+
+:: DR ::
+:-Stop LSP
+SQL> Alter database stop logical standby apply;
+SQL> Shutdown immediate;
+
+:-To start the LSP process on standby
+SQL> Startup;
+SQL> Alter database start logical standby apply immediate;
+
