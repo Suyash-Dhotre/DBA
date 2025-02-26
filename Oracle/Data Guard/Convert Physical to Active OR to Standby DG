@@ -1,0 +1,53 @@
+====================================================================
+Convert Physical Standby into Active Data Guard (Read Only Stand by) 
+====================================================================
+
+## Enable Active Data Guard
+:: DR ::
+SQL> alter database recover managed standby database cancel;
+SQL> alter database open;
+SQL> select name, open_mode, database_role from v$database;
+SQL> alter database recover managed standby database disconnect;
+
+SQL> select process, status, sequence# from v$managed_standby;
+
+## Revert back to physical standby
+:: DR ::
+SQL> alter database recover managed standby database cancel;
+SQL> shutdown immediate;
+SQL> startup mount;
+SQL> select name, open_mode, database_role from v$database;
+SQL> alter database recover managed standby database disconnect;
+
+SQL> select process, status, sequence# from v$managed_standby;
+
+
+=========================================================
+Convert Physical Standby into Snapshot Standby Vice versa
+=========================================================
+
+Note:-	For this snapshot standby, you do not need Flashback enabled at database level
+		Let's assume that application team wants to test something on production data. 
+		Rather than cloning prod, we can convert existing physical standby into snapshot standby, perform the testing and convert it back to physical standby.
+
+## Convert physical standby to snapshot standby:
+:: DR ::
+SQL> alter database recover managed standby database cancel;
+SQL> select name, open_mode from v$database; 				-- >> make sure its mounted
+SQL> alter database convert to snapshot standby;
+SQL> alter database open;									-->> open the DB
+SQL> select name, open_mode, database_role from v$database;
+SQL> select name, guarantee_flashback_database from v$restore_point;
+
+
+## Revert back snapshot standby to physical standby:
+:: DR ::
+SQL> select name, open_mode, database_role from v$database;
+SQL> shut immediate;
+SQL> startup mount;
+SQL> alter database convert to physical standby;
+SQL> shutdown immediate
+SQL> startup mount;
+SQL> alter database recover managed standby database disconnect;
+
+
