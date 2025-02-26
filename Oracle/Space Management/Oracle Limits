@@ -1,0 +1,37 @@
+===============================
+Physical Oracle Database Limits
+===============================
+
+## DATABASE BLOCK SIZE
+	min 2KB and max dependent on OS but never exceeds 32K
+
+## DATABASE BLOCKS
+	min in the initial extent of a segment = 2 blocks
+	max per data file are platform dependent = 222 – 1 blocks
+
+## DATABASE FILES
+	max per tablespace = OS dependent, usually 1022
+	max per database = 65533, sometimes less on different OS
+
+## DATABASE FILE SIZE
+	max size OS dependent. Limited by maximum operating system file size; 
+	typically 222 or 4MB blocks. The max size of a single datafile is limited by the database block size. 
+	Generally it’s 32TB for 8K block and 128TB for 32K block.
+
+## TABLESPACES
+	max no of tablespaces per database = 64K.
+	Number of tablespaces cannot exceed the number of database files because each tablespace must include at least one file.
+
+## CONTROLFILES
+	min 1 controlfile required, recommended to have more than 1
+	max size = 25000 X (db block size)
+
+##REDOLOGFILES
+	min size = 4MB
+	max size = OS dependent, typically 2 GB
+	max number of logfiles = limited by MAXLOGFILES parameter
+	max number of logfiles per group = unlimited
+
+
+
+
