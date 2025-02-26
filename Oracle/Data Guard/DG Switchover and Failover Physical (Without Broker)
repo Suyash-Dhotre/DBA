@@ -1,0 +1,98 @@
+=====================================================================================
+Oracle Data Guard Manual Switchover and Failover on Physical Standby (Without Broker)
+=====================================================================================
+
+[1] Perform Manual Switchover on Physical Standby
+
+## Check no GAP
+:: PRIMARY ::
+SQL> select STATUS, GAP_STATUS from V$ARCHIVE_DEST_STATUS where DEST_ID = 2;
+SQL> archive log list;
+
+:: DR ::
+SQL> select NAME, VALUE, DATUM_TIME from V$DATAGUARD_STATS;
+SQL> select sequence#, applied, first_time, next_time, name as filename from v$archived_log order by sequence#;
+
+
+## (i) Convert primary to standby 
+:: PRIMARY :: 
+SQL> select SWITCHOVER_STATUS from V$DATABASE; -- O/P TO STANDBY or SESSIONS ACTIVE
+SQL> alter database commit to switchover to physical standby with session shutdown;
+SQL> startup mount;
+SQL> select name, open_mode, db_unique_name, database_role from v$database;
+
+Note:- 	At this stage, there is no primary to accept queries from client. 
+		Run below query on client putty terminal. The query will hang and wait until standby is converted to primary
+
+
+## (ii) Convert standby to primary: Our primary is already converted to standby. Now it’s time to convert original standby into primary
+:: DR ::
+SQL> select SWITCHOVER_STATUS from V$DATABASE; -- O/P TO PRIMARY or SESSIONS ACTIVE
+SQL> alter database commit to switchover to primary with session shutdown;
+SQL> alter database open;
+SQL> select name, open_mode, db_unique_name, database_role from v$database;
+
+Note:- 	At this stage, the client query would execute successfully!
+
+
+## On new standby – Initially your primary database
+:: NEW DR :: Switch one (Old PRIMARY)
+SQL> alter database recover managed standby database disconnect;
+
+
+#:#:# --> Revert back: Once again follow the above process from top and re-execute steps in proper databases to revert back to original setup
+
+
+
+[2] Perform Failover to Standby
+
+## Minimize data loss (PROD)
+:: PRIMARY ::
+SQL> startup mount
+SQL> alter system flush redo to 'orcl_stb';
+
+
+NOTE: If you are not able to mount the database, 
+	  then check if primary server is up. 
+	  In that case manually copy archive logs from primary to standby and register those logs on standby database
+	  Check for redo gaps If any gap exists, copy log files from primary and register on standby
+
+:: DR ::
+SQL> select THREAD#, LOW_SEQUENCE#, HIGH_SEQUENCE# from V$ARCHIVE_GAP;
+SQL> alter database register physical logfile '&logfile_path';
+
+
+## Start failover: We need to activate standby so that client can continue to access even after failover
+:: DR ::
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE FINISH;
+SQL> select SWITCHOVER_STATUS from V$DATABASE; --  O/P PRIMARY or SESSIONS ACTIVE
+
+SQL> alter database commit to switchover to primary with session shutdown;
+SQL> alter database open;
+
+
+[3] Rebuild Primary After Failover
+
+## Post failover, there are two methods of rebuilding your failed primary
+- Method 1:Rebuild from scratch à RMAN duplicate
+- Method 2: Flashback database à only if Flashback was enabled
+
+
+## Get the SCN at which standby became primary
+:: NEW PRIMARY ::
+SQL> select to_char(standby_became_primary_scn) from v$database;
+
+
+## Flash back old Primary before crash
+:: CRASHED PRIMARY :: (OLD PRIMARY) 
+SQL> startup mount;
+SQL> flashback database to scn <standby_became_primary_scn>;
+
+
+## Make Old Primary a New Standby
+:: CRASHED PRIMARY :: (OLD PRIMARY) :: NEW STANDBY (NEW DR)
+SQL> alter database convert to physical standby;
+SQL> alter database recover managed standby database disconnect;
+
+
