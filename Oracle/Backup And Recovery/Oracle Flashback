@@ -1,3 +1,33 @@
+
+===================================
+Estimate flashback destination size
+===================================
+
+select to_char(COMPLETION_TIME,'DD-MON-YYYY') Arch_Date,count(*) No#_Logs,
+sum((BLOCKS*512)/1024/1024/1024) Arch_LogSize_GB 
+from v$archived_log 
+where to_char(COMPLETION_TIME,'DD-MON-YYYY')>=trunc(sysdate-7) and DEST_ID=1
+group by to_char(COMPLETION_TIME,'DD-MON-YYYY')
+order by to_char(COMPLETION_TIME,'DD-MON-YYYY');
+
+
+Note:
+Method to estimate flashback space
+	- Check the archive generation size via above query
+	- Take the average per day size of archives generated
+	- Multiply the average archive size with x number of days
+	- Ask storage team to add the required space for flashback file system
+
+e.g.
+	Let us assume the average archive log files size generated per day is 5 GB. 
+	Your application team wants you to enable FLASHBACK for 4 days. 
+	In this case you will need Approx 20 GB (5GB X 4Days) of space for flashback logs
+	
+	
+
+
+
+
 ================
 Oracle Flashback
 ================
