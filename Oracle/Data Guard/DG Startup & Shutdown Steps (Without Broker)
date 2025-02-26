@@ -1,0 +1,33 @@
+===========================================================
+Oracle Data Guard Startup & Shutdown Steps (Without Broker)
+===========================================================
+
+## Data Guard Shutdown Sequence
+
+:: DR ::
+:-Stop log apply service or MRP and shutdown the standby
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE CANCEL;
+SQL> SHUT IMMEDIATE;
+
+:: PRIMARY ::
+:- Stop log shipping from primary and shutdown primary database
+SQL> ALTER SYSTEM SET log_archive_dest_state_2='DEFER';
+SQL> SHUT IMMEDIATE;
+
+
+## Data Guard Startup Sequence
+
+:: PRIMARY ::
+:- Startup primary database and enable log shipping
+SQL> STARTUP;
+SQL> ALTER SYSTEM SET log_archive_dest_state_2='ENABLE';
+
+:: DR ::
+:- Startup standby and enable log apply service or MRP
+SQL> startup nomount;
+SQL> alter database mount standby database;
+SQL> ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT FROM SESSION;
+
+
+
+
