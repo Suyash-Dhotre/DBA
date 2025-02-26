@@ -1,0 +1,64 @@
+==============================================================
+Oracle Data Guard Broker Switchover and Failover (With Broker)
+==============================================================
+
+[1] Data Guard Broker Switchover
+
+## Switchover Using DGMGRL
+:: PRIMARY ::
+dgmgrl sys/oracle@orcl
+DGMGRL> show configuration;
+DGMGRL> SWITCHOVER TO orcl_stb;
+DGMGRL> show configuration;
+
+## Revert Back Using DGMGRL
+:: current primary(orcl_stb) ::
+dgmgrl sys/oracle@orcl_stb
+DGMGRL> show configuration;
+DGMGRL> switchover to orcl;
+DGMGRL> show configuration;
+
+
+[2] Data Guard Broker Failover
+
+## Crash Primary Database (Simulate)
+:: PRIMARY ::
+ps -ef|grep pmon
+
+grid      2636     1  0 Apr15 ?        00:00:12 asm_pmon_+ASM
+oracle   16914     1  0 14:03 ?        00:00:00 ora_pmon_orcl
+oracle   17722 15893  0 15:08 pts/0    00:00:00 grep pmon
+
+kill -9 16914 
+
+
+## Failover to Standby
+:: DR ::
+dgmgrl sys/oracle@orcl_stb
+DGMGRL> show configuration;
+DGMGRL> FAILOVER TO orcl_stb;
+DGMGRL> show configuration;
+
+
+## Rebuild Primary After Failover
+Post failover, there are two methods of rebuilding your failed primary
+Method 1: Rebuild from scratch –> RMAN duplicate
+Method 2: Flashback database –> only if Flashback was enabled
+
+::On current primary (orcl_stb) ::
+dgmgrl sys/oracle@orcl_stb
+DGMGRL> show configuration;
+DGMGRL> reinstate database orcl;
+
+
+## Verify orcl post reinstate
+:: On failed primary (orcl) ::
+SQL> select name,open_mode from v$database;
+SQL> select process, status, sequence# from v$managed_standby;
+
+## Switchover to get original configuration
+:: On current primary (orcl_stb) ::
+dgmgrl sys/oracle@orcl_stb
+DGMGRL> switchover to orcl;
+
+
