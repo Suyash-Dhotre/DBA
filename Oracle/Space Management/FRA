@@ -2,11 +2,42 @@
 Check FRA location utilization
 ==============================
 
-	set linesize 500
-	col NAME for a50
-	select name, ROUND(SPACE_LIMIT/1024/1024/1024,2) "Allocated Space(GB)", 
-	round(SPACE_USED/1024/1024/1024,2) "Used Space(GB)",
-	round(SPACE_RECLAIMABLE/1024/1024/1024,2) "SPACE_RECLAIMABLE (GB)" ,
-	(select round(ESTIMATED_FLASHBACK_SIZE/1024/1024/1024,2) 
-	from V$FLASHBACK_DATABASE_LOG) "Estimated Space (GB)"
-	from V$RECOVERY_FILE_DEST;
+set linesize 500
+col NAME for a50
+select name, ROUND(SPACE_LIMIT/1024/1024/1024,2) "Allocated Space(GB)", 
+round(SPACE_USED/1024/1024/1024,2) "Used Space(GB)",
+round(SPACE_RECLAIMABLE/1024/1024/1024,2) "SPACE_RECLAIMABLE (GB)" ,
+(select round(ESTIMATED_FLASHBACK_SIZE/1024/1024/1024,2) 
+from V$FLASHBACK_DATABASE_LOG) "Estimated Space (GB)"
+from V$RECOVERY_FILE_DEST;
+
+
+===============================
+Oracle Fast Recovery Area (FRA)
+===============================
+Note: FRA by default contain REDO, ARCHIVE, BACKUPSET, AUTOBACKUP, one CONTROL FILE copy.
+	  You can change redo log and archive log location , control file know the new and old locations, so RMAN take backup all archive log.
+
+
+##Defaul FRA (FILE SYSTEM)
+	DBNAME
+	├── archivelog
+	│   └── 2024_11_13
+	├── autobackup
+	│   └── 2024_11_13
+	├── backupset
+	│   └── 2024_11_13
+	├── control02.ctl
+	└── onlinelog
+
+
+## FRA size and location
+ALTER SYSTEM SET DB_RECOVERY_FILE_DEST_SIZE = 10G; 	-- default 8256M
+
+ALTER SYSTEM SET DB_RECOVERY_FILE_DEST = '/u02/oracle/fra';
+
+
+## For archivelog
+alter system set log_archive_dest_1='location=/u01/proddb/arch'
+alter system set db_recovery_file_dest_size = '20G' scope=both sid='*';
+ALTER SYSTEM SET log_archive_format='arch_%t_%s_%r.arc' SCOPE=spfile; -- use in RAC
