@@ -1,0 +1,69 @@
+=======================================================================================
+Client Connectivity in Data Guard Configuration (If Primary down Stand by Take charge)
+=======================================================================================
+
+:: PRIMARY ::
+## Create New Service on Primary
+- Make bdelow service run only on primary: 
+	This service should run only on the primary database. 
+	Even when there is switchover or failover, this service should continue to run on new primary
+	
+SQL> exec DBMS_SERVICE.CREATE_SERVICE (service_name => 'orcl_ha', network_name => 'orcl_ha', failover_method => 'BASIC', failover_type => 'SELECT', failover_retries => 30, failover_delay => 10);
+SQL> select NAME, NETWORK_NAME from dba_services;
+
+SQL> create or replace procedure start_ha_service
+	 is
+	 v_role VARCHAR(30);
+	 begin
+	 select DATABASE_ROLE into v_role from V$DATABASE;
+	 if v_role = 'PRIMARY' then
+	 DBMS_SERVICE.START_SERVICE('orcl_ha');
+	 else
+	 DBMS_SERVICE.STOP_SERVICE('orcl_ha');
+	 end if;
+	 end;
+	 /
+
+SQL> SELECT TEXT FROM DBA_SOURCE WHERE lower(NAME) = 'start_ha_service' AND TYPE = 'PROCEDURE' ORDER BY LINE;
+
+
+## Create Trigger to Auto Start Service
+- TRIGGER TO START SERVICE ON DB STARTUP:
+SQL> create or replace TRIGGER ha_on_startup
+	 after startup on database
+	 begin
+	 start_ha_service;
+	 end;
+	 /
+
+- TRIGGER TO START SERVICE ON DB ROLECHANGE:
+SQL> create or replace TRIGGER ha_on_role_change
+	 after db_role_change on database
+	 begin
+	 start_ha_service;
+	 end;
+	 /
+	
+SQL> SELECT TRIGGER_BODY FROM dba_TRIGGERS WHERE lower(TRIGGER_NAME) = 'ha_on_role_change';
+SQL> SELECT TRIGGER_BODY FROM dba_TRIGGERS WHERE lower(TRIGGER_NAME) = 'ha_on_startup';
+
+
+## Start the new service on primary
+SQL> exec start_ha_service;
+SQL> alter system archive log current;
+
+
+## Enable Client Connect in Data Guard
+- Update client's tns entries to access Oracle Data Guard setup via above service
+
+orcl_ha =
+  (DESCRIPTION =
+    (ADDRESS_LIST=
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.2.171)(PORT = 1521))
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.2.172)(PORT = 1521))
+    )
+   (CONNECT_DATA = (SERVICE_NAME = orcl_ha)
+     (FAILOVER_MODE=(TYPE=SELECT)(METHOD=BASIC)(RETRIES=30)(DELAY=10))
+   )
+  )    
+
