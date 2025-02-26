@@ -1,0 +1,88 @@
+======================================
+Oracle Data Guard Background Processes
+======================================
+
+--Note:-<IMP>
+select process, status, sequence# from v$managed_standby;
+Type of the PROCESS whose information is being reported:
+	PROCESS    | ROLE                       | DESCRIPTION
+	-----------|----------------------------|----------------------------------------------
+	RFS        | Remote File Server         | Receives redo log files from the primary database.
+	MRP        | Managed Recovery Process   | Applies redo data to the standby database.
+	LNS        | Log Network Server         | Transmits redo data to standby databases.
+	ARCn       | Archiver                   | Archives redo log files received from the primary.
+	NSV        | Network Server             | Handles network services for redo shipping.
+	DGRD       | Data Guard Broker Process  | Monitors and manages Data Guard if enabled.
+
+	
+Current process STATUS:
+	ALLOCATED 		- Process is active but not currently connected to a primary database
+	ANNOUNCING 		- Process is announcing the existence of a potential dependent archived redo log
+	APPLYING_LOG 	- Process is actively applying the archived redo log to the standby database
+	ATTACHED 		- Process is actively attached and communicating to a primary database
+	CLOSING 		- Process has completed archival and is closing the archived redo log
+	CONNECTED 		- Network connection established to a primary database
+	ERROR 			- Process has failed
+	IDLE 			- Process is not performing any activities
+	OPENING 		- Process is opening the archived redo log
+	RECEIVING 		- Process is receiving network communication
+	REGISTERING 	- Process is registering the existence of a completed dependent archived redo log
+	UNUSED 			- No active process
+	WAIT_FOR_GAP 	- Process is waiting for the archive gap to be resolved
+	WAIT_FOR_LOG 	- Process is waiting for the archived redo log to be completed
+	WRITING 		- Process is actively writing redo data to the archived redo log
+
+
+LSP [Logical Standby ]:
+		It comes into play for logical dataguard only. 
+		It controls the application of archived redo log information to the logical standby database. 
+		LSP process will transform redo data into sql statements and then these sql statements will be applied to logical standby database.
+		
+
+
+## Data Guard Archive Process
+	We have seen 4 numbers ARCH processes when you query v$managed_standby. 
+	That’s alright, because of 4 is the default value of LOG_ARCHIVE_MAX_PROCESSES.
+
+	The LOG_ARCHIVE_MAX_PROCESSES initialization parameter specifies the number of ARCn processes that the database initially starts. 
+	The default is 4 processes. There is usually no need specify this initialization parameter or to change its default value, 
+	because the database starts additional archiver processes (ARCn) as needed to ensure that the automatic processing of filled redo log files does not fall behind.
+
+	However, to avoid any run-time overhead of starting additional ARCn processes, 
+	you can set the LOG_ARCHIVE_MAX_PROCESSES initialization parameter to specify that up to 30 ARCn processes be started at instance startup. 
+	The LOG_ARCHIVE_MAX_PROCESSES parameter is dynamic, so you can change it using the ALTER SYSTEM statement.
+
+	In most cases the default for LOG_ARCHIVE_MAX_PROCESSES is sufficient. 
+	However, in a Data Guard configurations that have multiple standby databases it may be necessary to increase the number of archive processes. 
+	The value of the LOG_ARCHIVE_MAX_PROCESSES initialization parameter must be at least one greater than the total number of all remote destinations. 
+	Use the following equation when setting the LOG_ARCHIVE_MAX_PROCESSES parameter for highly available environments
+
+		LOG_ARCHIVE_MAX_PROCESSES = sum(remote_destinations) + count(threads)
+		
+		Source: Set the LOG_ARCHIVE_MAX_PROCESSES Parameter
+
+
+## Data Guard RFS Processes
+	3 Numbers of RFS processes
+
+	RFS processes are spawned regarding the amount of remote archiver connections (due to ARC in your DG configuration). 
+	One ARC process is related to local archiving on primary database and so 3 are left for DG transmission, this can be parallelised as well, 
+	but needs additional parameter setting MAX_CONNECTIONS.
+
+
+
+## Data Guard MRP Process
+	1 number of MRP0process
+
+	How many Managed Standby Recovery Processes do you expect? 
+	It is the coordinator – and like in real life only one guy is the boss
+
+	The ARCH redo transport mode has been deprecated and will be de-supported in a future release. 
+	Oracle recommends that you switch to the ASYNC transport mode if you are currently using the ARCH transport mode. 
+	The ASYNC transport mode is superior to the ARCH transport mode in all respects, and is the new default transport mode.
+	
+	
+	
+	
+	
+	
