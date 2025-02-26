@@ -1,6 +1,8 @@
 =====================================================================================================
 Configuring Oracle Data Guard Broker for High Availability from manual to Enable DGMGRL (With Broker) 
 =====================================================================================================
+Convert to DG with Broker:
+==========================
 
 PRIMARY - Up and Running
 DR - Mount
@@ -165,6 +167,366 @@ DGMGRL> show database orcl;
 
 ## Set Archive log Deletion Policy
 :: PRIMARY and DR ::
+rman target / 
+RMAN> configure archivelog deletion policy to applied on all standby;
+RMAN> backup archivelog delete all input;
+
+
+
+
+
+=========================================================================
+Oracle Data Guard Physical Standby Configuration (With Broker) from Crash 
+=========================================================================
+
+Primary details:
+	SID: orcl
+	ORACLE_BASE=/oracle/u01/app/oracle
+	ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1
+	Host Name: vm1.example.com
+	
+Standby details:
+	SID: orcl
+	ORACLE_BASE=/oracle/u01/app/oracle
+	ORACLE_HOME=/oracle/u01/app/oracle/product/19c/dbhome_1
+    Host Name: vm1dr.example.com
+	
+
+
+:: PRIMARY ::
+
+#1# Set DB ARCHIVELOG, FORCE_LOGGING ON, standby_file_management ON, ADD(n+1) V$STANDBY_LOG, FLASHBACK_ON ON, 
+
+:- Enable Archive log mode and Forece login and flashback on
+SQL> shutdown immediate
+SQL> startup mount
+SQL> alter database archivelog;
+SQL> alter database open;
+SQL> archive log list;
+SQL> alter database force logging;
+SQL> show parameter recovery;
+SQL> alter system set db_recovery_file_dest_size=10g;
+SQL> alter database flashback on; -- (optional)
+SQL> select name , DB_UNIQUE_NAME, OPEN_MODE , LOG_MODE, FORCE_LOGGING, flashback_on from v$database;
+SQL> show parameter recovery;
+
+
+:- Set standby_file_management to AUTO
+SQL> alter system set standby_file_management = 'AUTO';
+SQL> show parameter standby_file_management
+
+
+:- Check DB Unique name parameter on primary
+SQL> show parameter db_name
+SQL> show parameter db_unique_name
+
+
+:- Create standby log files
+SQL> select * from v$log;
+SQL> select * from v$logfile;
+
+SQL> ALTER DATABASE ADD STANDBY LOGFILE THREAD 1 GROUP 11('/oracle/u02/DB/orcl/stb_redo/stb_redo11a.log','/oracle/u02/DB/orcl/stb_redo/stb_redo11b.log') SIZE 209715200;
+SQL> ALTER DATABASE ADD STANDBY LOGFILE THREAD 1 GROUP 12('/oracle/u02/DB/orcl/stb_redo/stb_redo12a.log','/oracle/u02/DB/orcl/stb_redo/stb_redo12b.log') SIZE 209715200;
+SQL> ALTER DATABASE ADD STANDBY LOGFILE THREAD 1 GROUP 13('/oracle/u02/DB/orcl/stb_redo/stb_redo13a.log','/oracle/u02/DB/orcl/stb_redo/stb_redo13b.log') SIZE 209715200;
+SQL> ALTER DATABASE ADD STANDBY LOGFILE THREAD 1 GROUP 14('/oracle/u02/DB/orcl/stb_redo/stb_redo14a.log','/oracle/u02/DB/orcl/stb_redo/stb_redo14b.log') SIZE 209715200;
+SQL> SELECT GROUP#,THREAD#,SEQUENCE#,ARCHIVED,STATUS FROM V$STANDBY_LOG;
+
+    GROUP#    THREAD#  SEQUENCE# ARC STATUS
+---------- ---------- ---------- --- ----------
+        11          1          0 YES UNASSIGNED
+        12          1          0 YES UNASSIGNED
+        13          1          0 YES UNASSIGNED
+        14          1          0 YES UNASSIGNED
+
+SQL>  select * from v$logfile;
+
+    GROUP# STATUS  TYPE    MEMBER                                             IS_     CON_ID
+---------- ------- ------- -------------------------------------------------- --- ----------
+         3         ONLINE  /oracle/u02/DB/orcl/redoa/redo03a                  NO           0
+         2         ONLINE  /oracle/u02/DB/orcl/redoa/redo02a                  NO           0
+         1         ONLINE  /oracle/u02/DB/orcl/redoa/redo01a                  NO           0
+         3         ONLINE  /oracle/u02/DB/orcl/redob/redo03b                  NO           0
+         1         ONLINE  /oracle/u02/DB/orcl/redob/redo01b                  NO           0
+         2         ONLINE  /oracle/u02/DB/orcl/redob/redo02b                  NO           0
+        11         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo11a.log       NO           0
+        11         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo11b.log       NO           0
+        12         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo12a.log       NO           0
+        12         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo12b.log       NO           0
+        13         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo13a.log       NO           0
+        13         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo13b.log       NO           0
+        14         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo14a.log       NO           0
+        14         STANDBY /oracle/u02/DB/orcl/stb_redo/stb_redo14b.log       NO           0
+
+
+
+#2# Configure network
+
+:: PRIMARY and DR::
+vi $ORACLE_HOME/network/admin/tnsnames.ora
+	orcl =
+	  (DESCRIPTION =
+		(ADDRESS_LIST =
+		  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.101)(PORT = 1521))
+		)
+		(CONNECT_DATA =
+		  (SID = orcl)
+		)
+	  )
+
+	orcl_stb =
+	  (DESCRIPTION =
+		(ADDRESS_LIST =
+		  (ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+		)
+		(CONNECT_DATA =
+		  (SID = orcl)
+		)
+	  )
+
+
+:: PRIMARY ::
+vi $ORACLE_HOME/network/admin/listener.ora
+	LISTENER_ORCLDB =
+	(DESCRIPTION_LIST =
+		(DESCRIPTION =
+		(ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.101)(PORT = 1521))
+		)
+	)
+	
+	SID_LIST_LISTENER_ORCLDB =
+	(SID_LIST =
+		(SID_DESC =
+		(GLOBAL_DBNAME = orcl_DGMGRL)
+		(ORACLE_HOME = /oracle/u01/app/oracle/product/19c/dbhome_1)
+		(SID_NAME = orcl)
+		)
+	)
+	
+	ADR_BASE_LISTENER = /oracle/u01/app/oracle
+
+
+lsnrctl stop LISTENER_ORCLDB
+lsnrctl start LISTENER_ORCLDB
+
+
+
+:: DR :: 
+vi $ORACLE_HOME/network/admin/listener.ora
+	LISTENER_ORCLDB_STB =
+	 (DESCRIPTION_LIST =
+		(DESCRIPTION =
+		(ADDRESS = (PROTOCOL = TCP)(HOST = 192.168.56.102)(PORT = 1521))
+		)
+	 )
+	
+	SID_LIST_LISTENER_ORCLDB_STB =
+	 (SID_LIST =
+		(SID_DESC =
+		(GLOBAL_DBNAME = orcl_stb_DGMGRL)
+		(ORACLE_HOME = /oracle/u01/app/oracle/product/19c/dbhome_1)
+		(SID_NAME = orcl)
+		)
+	 )
+	
+	ADR_BASE_LISTENER = /oracle/u01/app/oracle
+
+	
+lsnrctl stop LISTENER_ORCLDB_STB
+lsnrctl start LISTENER_ORCLDB_STB
+
+
+:- Check directory mentioned in pfile
+:: PRIMARY ::
+SQL> create pfile from spfile;
+cat $ORACLE_HOME/dbs/initorcl.ora
+
+
+:- Copy password file
+scp orapworcl oracle@vm1dr:/oracle/u01/app/oracle/product/19c/dbhome_1/dbs
+
+--If password file dosen't exists
+--orapwd file=$ORACLE_HOME/dbs/orapworcl force=y
+
+
+:- Check directory structure
+SQL> select name from v$datafile;
+SQL> select name from v$tempfile;
+SQL> select member from v$logfile;
+SQL> select name from v$controlfile;
+
+
+:- Create Required Dicrectories on DR
+:: DR ::
+mkdir -p /oracle/u01/app/oracle
+mkdir -p /oracle/u02/DB/orcl/fra
+mkdir -p /oracle/u02/DB/orcl/data/ORCL
+mkdir -p /oracle/u02/DB/orcl/fra/ORCL
+mkdir -p /oracle/u01/app/oracle/admin/orcl/adump
+mkdir -p /oracle/u02/DB/orcl/temp
+mkdir -p /oracle/u02/DB/orcl/redoa
+mkdir -p /oracle/u02/DB/orcl/redob
+mkdir -p /oracle/u02/DB/orcl/stb_redo
+mkdir -p /dbback/DB_Duplicate
+
+
+
+#3# Build standby
+
+:: PRIMARY ::
+mkdir /dbback/DB_Duplicate
+SQL> alter system switch logfile;
+SQL> SELECT TO_CHAR(first_time, 'YYYY-MM-DD HH24:MI:SS') AS first_time_formatted, TO_CHAR(next_time, 'YYYY-MM-DD HH24:MI:SS') AS next_time_formatted, name FROM v$archived_log;
+
+rman target /
+RMAN> RUN 
+		{
+		  allocate channel ch1 device type disk format '/dbback/DB_Duplicate/orcl_bkp_%u.bkp';
+		  allocate channel ch2 device type disk format '/dbback/DB_Duplicate/orcl_bkp_%u.bkp';
+		  CROSSCHECK BACKUP;
+		  DELETE NOPROMPT OBSOLETE;
+		  delete noprompt expired backup;
+		  BACKUP DATABASE TAG 'PRIMARY_FULL_BACKUP';
+		  BACKUP SPFILE format '/dbback/DB_Duplicate/spfile_orcl.bkp';
+		  BACKUP current CONTROLFILE for standby format '/dbback/DB_Duplicate/control_orcl.bkp';
+		  backup archivelog all delete input;
+		  release channel ch1;
+		  release channel ch2;
+		}
+
+scp /dbback/DB_Duplicate/* oracle@vm1dr:/dbback/DB_Duplicate
+ 
+ 
+
+:: DR ::
+:- start the instance in nomount mode
+vi $ORACLE_HOME/dbs/initorcl.ora
+*.db_name='orcl'
+
+export ORACLE_SID=orcl
+sqlplus / as sysdba
+SQL> STARTUP NOMOUNT;
+SQL> exit;
+
+--you must exit from sqlplus, else cloning will fail
+
+
+:: PRIMARY ::
+:- Duplicate primary database via RMAN
+
+rman target sys@orcl auxiliary sys@orcl_stb
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY
+		DORECOVER
+		SPFILE
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_config='dg_config=(orcl,orcl_stb)'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		SET standby_file_management='AUTO'
+		BACKUP LOCATION '/dbback/DB_Duplicate/'
+		NOFILENAMECHECK;
+
+(Optional Active one)
+RMAN> DUPLICATE TARGET DATABASE FOR STANDBY FROM ACTIVE DATABASE DORECOVER 
+		SPFILE 
+		SET db_unique_name='orcl_stb'
+		SET fal_server='orcl'
+		SET log_archive_dest_2='service=orcl async valid_for=(online_logfiles,primary_role) db_unique_name=orcl'
+		NOFILENAMECHECK;
+		
+
+:: DR ::
+rman target /
+RMAN> restore controlfile from '/dbback/DB_Duplicate/control_orcl.bkp'; -- 
+
+
+:- Enable flashback on standby
+SQL> alter database flashback on; -- (optional) -- Need to stop MRP process to start Flashback on DR and then enable MRP again
+SQL> select name , DB_UNIQUE_NAME, OPEN_MODE , LOG_MODE, FORCE_LOGGING, flashback_on, DATABASE_ROLE from v$database;
+
+:- Bounce database
+SQL> shut immediate;
+SQL> startup mount;
+
+
+
+#4# Enable Data Guard Broker
+:: PRIMARY ::
+SQL> alter system set dg_broker_start=true;
+SQL> show parameter dg_broker_start;
+
+:: DR ::
+SQL> alter system set dg_broker_start=true;
+SQL> show parameter dg_broker_start;
+
+:: PRIMARY ::
+dgmgrl sys@orcl
+DGMGRL> create configuration orcl as primary database is orcl connect identifier is orcl;
+DGMGRL> show configuration;
+
+DGMGRL> add database orcl_stb as connect identifier is orcl_stb;
+DGMGRL> show configuration;
+DGMGRL> ENABLE CONFIGURATION;
+
+
+:- Stop/Start log apply:
+dgmgrl sys/sys@orcl
+DGMGRL> show configuration;
+DGMGRL> show database orcl_stb;
+DGMGRL> edit database orcl_stb set state=APPLY-OFF;
+DGMGRL> show database orcl_stb;
+
+DGMGRL> edit database orcl_stb set state=APPLY-ON;
+DGMGRL> show database orcl_stb;
+
+
+:- Disable/Enable log shipping/transport:
+
+dgmgrl sys/sys@orcl
+DGMGRL> show configuration;
+DGMGRL> edit database orcl set state=TRANSPORT-OFF;
+DGMGRL> show database orcl;
+
+DGMGRL> edit database orcl set state=TRANSPORT-ON;
+DGMGRL> show database orcl;
+
+
+
+#5# Verify standby configuration
+
+:: DR ::
+SQL> select process, status, sequence# from v$managed_standby;
+SQL> select sequence#, applied, first_time, next_time, name as filename from v$archived_log order by sequence#;
+
+SQL> select * from v$dataguard_status order by timestamp;
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+
+:: PRIMARY ::
+SQL> select sequence#, first_time, next_time, applied, archived from v$archived_log where name = 'orcl_stb' order by first_time;
+SQL> select STATUS, GAP_STATUS from V$ARCHIVE_DEST_STATUS where DEST_ID = 2;
+SQL> archive log list;
+
+SQL> select * from v$dataguard_status order by timestamp;
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+
+:: Both DR and PRIMARY ::
+SQL> set lines 999;
+SQL> select * from v$dataguard_status order by timestamp;
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+-- IF you see ORA-16058, do this on primary:
+SQL> alter system set log_archive_dest_state_2='DEFER';
+SQL> alter system set log_archive_dest_state_2='ENABLE';
+SQL> select dest_id, status, destination, error from v$archive_dest where dest_id<=2;
+
+-- Bounce MRP process (DR)
+SQL> alter database recover managed standby database cancel;
+SQL> alter database recover managed standby database disconnect;
+
+
+:: PRIMARY and DR ::
+
 rman target / 
 RMAN> configure archivelog deletion policy to applied on all standby;
 RMAN> backup archivelog delete all input;
