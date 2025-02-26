@@ -1,6 +1,4 @@
-(Due to technical issues, the search service is temporarily unavailable.)
-
-Here’s an updated table with a **third column** providing **real-life examples** of Oracle ASMCMD commands:  
+#ASMCMD
 
 | **Command**      | **Use Case**                                   | **Real-Life Example**                                                                 |
 |------------------|-----------------------------------------------|---------------------------------------------------------------------------------------|
