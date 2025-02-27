@@ -437,3 +437,8 @@ List RMAN Backups:
 Delete Obsolete Backups:
 	DELETE OBSOLETE;
 		• Removes backups that are no longer needed based on the retention policy.
+
+
+
+---
+RMAN> RESTORE ARCHIVELOG ALL;
