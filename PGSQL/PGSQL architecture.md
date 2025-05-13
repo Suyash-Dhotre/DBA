@@ -1,4 +1,4 @@
-
+"""code
                          +-----------------------------+
                          |         Client              |
                          +-----------------------------+
@@ -25,7 +25,6 @@
 | Check    | Auto Vacuum | Stats Collector | WAL Writer| Archiver | BG Writer| Logging Collector     |
 | Pointer  | Launcher    |                 |           |          |          |                       |
 +----------+-------------+-----------------+-----------+----------+----------+-----------------------+
-
                                       |
                                       v
                         +-------------------------------+
@@ -38,7 +37,7 @@
                         +-------------------------------+
 
 
-
+"""
 
 
 This diagram presents a **PostgreSQL Architecture Diagram**, showing the flow from client requests to disk-level operations. Here’s a **short description** of each component:
