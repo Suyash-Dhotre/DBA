@@ -17,7 +17,54 @@ Drio Audit policy TESTPOLICY;
 
 # Traditional auditing
 
-''' SQL
+``` SQL
+
+SHOW PARAMETER audit_trail; -- DB, DB_EXTENDED
+
+select * from DBA_STMT_AUDIT_OPTS;
+
+-- all system privilege auditing
+AUDIT ALL;
+NOAUDIT ALL;
+
+-- all system privilege auditing (alternative syntax)
+AUDIT ALL PRIVILEGES;
+NOAUDIT ALL PRIVILEGES;
+
+--Login auditing (global only)
+AUDIT CREATE SESSION;
+NOAUDIT CREATE SESSION;
+
+-- system privilege UPDATE ANY TABLE auditing
+AUDIT UPDATE ANY TABLE;
+NOAUDIT UPDATE ANY TABLE;
+
+-- object-level DELETE auditing on table hr.emp2
+AUDIT DELETE ON hr.emp2;
+NOAUDIT DELETE ON hr.emp2;
+
+-- all object-level auditing on table hr.emp2
+AUDIT ALL ON hr.emp2;
+NOAUDIT ALL ON hr.emp2;
+
+-- object-level UPDATE auditing on hr.employees by user hr
+AUDIT UPDATE ON hr.employees BY hr;
+NOAUDIT UPDATE ON hr.employees BY hr;
 
 
-...
+select * from DBA_AUDIT_TRAIL;
+
+
+
+Note : Can be add below
+== BY SESSION
+One record per session
+Less audit data
+Default for object auditing
+== BY ACCESS
+One record per action
+More detailed
+Default for system privileges
+
+
+```
