@@ -271,3 +271,118 @@ ORDER BY event_timestamp DESC;
 
 ---
 
+
+
+<br>
+<br>
+<br>
+<br>
+
+
+
+🔐 Disable Unified Auditing
+
+(Oracle On-Prem vs AWS RDS)
+
+1️⃣ On-Prem Oracle (Bare Metal / VM)
+✅ You CAN disable Unified Auditing on-prem
+🔍 First check current mode
+SELECT value
+FROM v$option
+WHERE parameter = 'Unified Auditing';
+
+Result	Meaning
+TRUE	Unified auditing compiled/enabled
+FALSE	Disabled at binary level
+🔴 Case A: Database in Mixed Mode (Most common)
+
+👉 Unified auditing is enabled but traditional auditing still exists
+
+✅ Disable Unified Auditing (switch back to traditional)
+Step 1: Shutdown database
+sqlplus / as sysdba
+SHUTDOWN IMMEDIATE;
+
+Step 2: Relink Oracle binary
+cd $ORACLE_HOME/rdbms/lib
+make -f ins_rdbms.mk uniaud_off ioracle
+
+Step 3: Start database
+STARTUP;
+
+Step 4: Verify
+SELECT value
+FROM v$option
+WHERE parameter = 'Unified Auditing';
+
+
+✔ Should return FALSE
+
+🔴 Case B: Database in Pure Unified Auditing Mode
+
+⚠️ Traditional auditing cannot be used at all until unified auditing is disabled.
+
+Steps are same as above:
+
+make -f ins_rdbms.mk uniaud_off ioracle
+
+🧠 Important Notes (On-Prem)
+Item	Info
+Restart required	✅ Yes
+OS access required	✅ Yes
+AUD$UNIFIED data	Remains unless purged
+Traditional audit	Works again after disable
+2️⃣ AWS RDS for Oracle
+❌ You CANNOT disable Unified Auditing in RDS
+Why?
+
+No OS access
+
+No $ORACLE_HOME
+
+Binary relinking not allowed
+
+Oracle manages the database engine
+
+🔍 What can you control in RDS?
+Control	Allowed?
+Disable unified auditing	❌ No
+Create/Drop audit policies	✅ Yes
+Disable traditional auditing	✅ Yes
+Purge audit records	✅ Yes
+⚙️ RDS: Best Possible Alternative
+Disable traditional auditing (recommended)
+ALTER SYSTEM SET audit_trail = NONE SCOPE=BOTH;
+
+
+(Through RDS parameter group)
+
+Disable Unified Audit Policies (effectively “off”)
+NOAUDIT POLICY rds_login_audit;
+
+
+or drop policy:
+
+DROP AUDIT POLICY rds_login_audit;
+
+
+➡ This stops audit generation, but unified auditing engine still exists.
+
+Verify Unified Auditing (Always ON in RDS)
+SELECT value
+FROM v$option
+WHERE parameter = 'Unified Auditing';
+
+
+✔ Always TRUE
+
+🆚 On-Prem vs RDS (Interview Table)
+Feature	On-Prem	AWS RDS
+Disable unified auditing	✅ Yes	❌ No
+Binary relinking	✅ Yes	❌ No
+uniaud_off	Allowed	Not allowed
+Control audit policies	✅ Yes	✅ Yes
+Restart required	Yes	No
+🎯 Interview One-Liner (Must Remember)
+
+Unified auditing can be disabled on-prem by relinking Oracle binaries using uniaud_off, but in AWS RDS unified auditing cannot be disabled—only audit policies can be turned off.
