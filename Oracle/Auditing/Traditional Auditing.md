@@ -307,7 +307,11 @@ COMMIT;
 ```
 
 ---
-
+## .
+## .
+## .
+## .
+## <>
 ## 🧠 Quick Interview Points
 
 * BY SESSION → 1 record per session
@@ -325,9 +329,6 @@ COMMIT;
 
 
 
-####
-####
-####
 Q/A Interview 
 
 Below are **Oracle Auditing Interview Q&A** — **clear, concise, and command-focused**.
