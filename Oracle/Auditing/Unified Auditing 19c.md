@@ -450,4 +450,224 @@ WHERE parameter = 'Unified Auditing';
 
 ---
 
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+Excellent question — this is **very important for interviews and real production setups**, especially when comparing **on-prem Oracle vs AWS RDS**.
+
+I’ll explain this in **two clear parts**.
+
+---
+
+# 🔧 1️⃣ What does
+
+```bash
+make -f ins_rdbms.mk uniaud_on ioracle
+```
+
+**actually do?**
+
+---
+
+## 📌 Background (Why this command exists)
+
+Oracle supports **two modes** of Unified Auditing:
+
+1. **Mixed Mode (default in many installs)**
+
+   * Traditional auditing + unified auditing both exist
+   * Unified auditing **not fully enforced**
+   * SYS actions may still go to OS
+
+2. **Pure Unified Auditing Mode**
+
+   * Traditional auditing completely disabled
+   * All auditing goes to **AUDSYS.AUD$UNIFIED**
+   * Required for **full compliance**
+
+⚠️ Oracle binaries are compiled **without pure unified auditing by default** in many installations.
+
+---
+
+## 🔍 What this command does internally
+
+```bash
+make -f ins_rdbms.mk uniaud_on ioracle
+```
+
+| Part              | Meaning                                  |
+| ----------------- | ---------------------------------------- |
+| `make`            | GNU build tool                           |
+| `-f ins_rdbms.mk` | Uses Oracle’s RDBMS makefile             |
+| `uniaud_on`       | Target that **enables unified auditing** |
+| `ioracle`         | Rebuilds the Oracle database executable  |
+
+---
+
+## 🧠 In simple words
+
+> **This command relinks the Oracle binary to permanently enable Pure Unified Auditing.**
+
+It:
+
+* Links Oracle executable with unified auditing libraries
+* Disables traditional auditing at binary level
+* Forces all audit records into `AUD$UNIFIED`
+* Makes Unified Auditing **non-optional**
+
+---
+
+## 🔴 Why database restart is required?
+
+Because:
+
+* You are **changing the Oracle executable**
+* Memory & background processes must reload new binaries
+
+---
+
+## 📌 When do you need this command?
+
+| Scenario                  | Required?          |
+| ------------------------- | ------------------ |
+| Fresh 19c install         | Sometimes          |
+| Upgraded DB (11g/12c)     | ✅ YES              |
+| On-prem / VM / Bare metal | ✅ YES              |
+| Oracle Cloud / RDS        | ❌ NO (not allowed) |
+
+---
+
+# ☁️ 2️⃣ Unified Auditing in AWS RDS (Very Important)
+
+---
+
+## ❌ Can you run `make -f ins_rdbms.mk uniaud_on ioracle` in RDS?
+
+### 🚫 NO — NEVER
+
+Reasons:
+
+* No OS access in RDS
+* No `$ORACLE_HOME`
+* No permission to relink binaries
+* Managed Oracle service
+
+---
+
+## ✅ How Unified Auditing works in RDS
+
+✔ Unified Auditing is **already enabled in Mixed Mode**
+✔ Oracle controls binaries
+✔ You can **USE** unified auditing, not **recompile** it
+
+---
+
+## 🔍 Check Unified Auditing in RDS
+
+```sql
+SELECT value
+FROM v$option
+WHERE parameter = 'Unified Auditing';
+```
+
+✔ Always returns `TRUE` in RDS
+
+---
+
+## ⚙️ Enable / Use Unified Auditing in RDS (Correct Way)
+
+### 1️⃣ Disable traditional auditing (optional but recommended)
+
+```sql
+ALTER SYSTEM SET audit_trail = NONE SCOPE=BOTH;
+```
+
+(RDS allows this via parameter group)
+
+---
+
+### 2️⃣ Verify Unified Audit Trail
+
+```sql
+SELECT COUNT(*)
+FROM unified_audit_trail;
+```
+
+---
+
+### 3️⃣ Create Unified Audit Policy
+
+```sql
+CREATE AUDIT POLICY rds_login_audit
+  ACTIONS LOGON, LOGOFF;
+```
+
+Enable it:
+
+```sql
+AUDIT POLICY rds_login_audit;
+```
+
+---
+
+### 4️⃣ Audit DDL / Privileges
+
+```sql
+CREATE AUDIT POLICY ddl_audit
+  PRIVILEGES CREATE TABLE, DROP TABLE;
+
+AUDIT POLICY ddl_audit;
+```
+
+---
+
+### 5️⃣ View Audit Records
+
+```sql
+SELECT event_timestamp,
+       dbusername,
+       action_name
+FROM unified_audit_trail
+ORDER BY event_timestamp DESC;
+```
+
+---
+
+## 🧹 Purging Unified Audit in RDS
+
+✔ Allowed (with restrictions)
+
+```sql
+BEGIN
+  DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(
+    audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED
+  );
+END;
+/
+```
+
+---
+
+## 🆚 On-Prem vs RDS (Interview Gold)
+
+| Feature          | On-Prem            | RDS             |
+| ---------------- | ------------------ | --------------- |
+| OS access        | Yes                | No              |
+| Binary relink    | Yes                | No              |
+| `uniaud_on`      | Required           | Not allowed     |
+| Unified Auditing | Pure mode possible | Mixed mode only |
+| AUD$UNIFIED      | Yes                | Yes             |
+
+---
+
+## 🧠 Interview One-Liner (Very Important)
+
+> **In on-prem Oracle, `make -f ins_rdbms.mk uniaud_on ioracle` relinks the Oracle binary to enable pure unified auditing, while in AWS RDS unified auditing is already enabled in mixed mode and binary relinking is not permitted.**
+
+
+
 
