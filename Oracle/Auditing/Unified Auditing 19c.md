@@ -275,7 +275,8 @@ ORDER BY event_timestamp DESC;
 
 <br>
 <br>
-<center> ******************************************************* </center>
+<br>
+<br>
 <br>
 <br>
 
