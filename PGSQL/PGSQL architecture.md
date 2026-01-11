@@ -1,4 +1,4 @@
-
+```
                          +-----------------------------+
                          |         Client              |
                          +-----------------------------+
@@ -38,7 +38,7 @@
                         +-------------------------------+
 
 
-
+```
 
 This diagram presents a **PostgreSQL Architecture Diagram**, showing the flow from client requests to disk-level operations. Here’s a **short description** of each component:
 
