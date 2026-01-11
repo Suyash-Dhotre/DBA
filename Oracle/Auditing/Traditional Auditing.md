@@ -307,12 +307,10 @@ COMMIT;
 ```
 
 ---
-## .
-## .
-## .
-## .
-## <>
-## 🧠 Quick Interview Points
+##  
+##  
+##  
+# 🧠 Quick Interview Points
 
 * BY SESSION → 1 record per session
 * BY ACCESS → 1 record per action
@@ -322,12 +320,6 @@ COMMIT;
 * DB_EXTENDED stores SQL text + binds
 
 ---
-
-
-
-
-
-
 
 Q/A Interview 
 
