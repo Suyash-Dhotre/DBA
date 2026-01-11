@@ -1,5 +1,3 @@
----
-
 # 📘 ORACLE AUDITING – COMPLETE SUMMARY (WITH COMMANDS)
 
 ---
@@ -305,11 +303,14 @@ COMMIT;
 DELETE FROM aud$ WHERE ntimestamp# < SYSDATE - 30;
 COMMIT;
 ```
-
----
-##  
-##  
-##  
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
 # 🧠 Quick Interview Points
 
 * BY SESSION → 1 record per session
