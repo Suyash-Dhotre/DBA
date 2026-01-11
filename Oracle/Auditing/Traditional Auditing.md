@@ -325,7 +325,10 @@ COMMIT;
 
 
 
-#### Q/A Interview 
+####
+####
+####
+Q/A Interview 
 
 Below are **Oracle Auditing Interview Q&A** — **clear, concise, and command-focused**.
 These are commonly asked in **DBA (2–6 yrs)** interviews.
