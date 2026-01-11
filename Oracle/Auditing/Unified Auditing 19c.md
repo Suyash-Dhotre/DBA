@@ -457,10 +457,6 @@ WHERE parameter = 'Unified Auditing';
 <br>
 <br>
 
-Excellent question — this is **very important for interviews and real production setups**, especially when comparing **on-prem Oracle vs AWS RDS**.
-
-I’ll explain this in **two clear parts**.
-
 ---
 
 # 🔧 1️⃣ What does
