@@ -69,8 +69,16 @@ Default for system privileges
 
 ```
 
-
-
+Move Unified Audit Trail
+```SQL
+BEGIN
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(
+    audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+    audit_trail_location_value => 'AUDIT_DATA'
+  );
+END;
+/
+```
 
 
 # auditing oracle DB
