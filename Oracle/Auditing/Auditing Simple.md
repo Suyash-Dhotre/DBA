@@ -12,7 +12,7 @@ Create Audit policy TESTPOLICY  Actions all;
 audit policy TESTPOLICY by HR;
 noaudit policy TESTPOLICY by HR;
 
-Drio Audit policy TESTPOLICY;
+drop Audit policy TESTPOLICY;
 ```
 
 # Traditional auditing
