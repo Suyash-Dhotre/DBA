@@ -69,16 +69,7 @@ Default for system privileges
 
 ```
 
-Move Unified Audit Trail
-```SQL
-BEGIN
-  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(
-    audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
-    audit_trail_location_value => 'AUDIT_DATA'
-  );
-END;
-/
-```
+
 
 
 # auditing oracle DB
@@ -127,7 +118,16 @@ audit_trail_location_value => 'USERS');
 END;
 /
 ```
-
+Move Unified Audit Trail
+```SQL
+BEGIN
+  DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_LOCATION(
+    audit_trail_type => DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+    audit_trail_location_value => 'AUDIT_DATA'
+  );
+END;
+/
+```
 
 ----- Schema and user level auditing
 ```SQL
@@ -135,7 +135,7 @@ END;
 AUDIT SELECT TABLE, UPDATE TABLE  BY hr, oe;
 
 - Run the script to create audit statement to enable auditing on table on particular schema
-select 'audit select on ' || owner.table_name || '  by access ' from dba_tables where owner='target_schema; -- (Traditional)
+select 'audit select on ' || owner.table_name || '  by access ' from dba_tables where owner='target_schema'; -- (Traditional)
 AUDIT ALL ON hr.employees_seq; -- (Traditional)
 
 CREATE AUDIT POLICY mypolicy ACTIONS CHANGE PASSWORD; --(unified)
