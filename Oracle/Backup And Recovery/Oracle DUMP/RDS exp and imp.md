@@ -202,7 +202,7 @@ REMAP_SCHEMA=HR:HR_NEW \
 PARALLEL=4
 ```
 
-Note : In Linux run in nohup &
+Note : In Linux run in nohup & -- expdp and impdp using par file
 
 
 
