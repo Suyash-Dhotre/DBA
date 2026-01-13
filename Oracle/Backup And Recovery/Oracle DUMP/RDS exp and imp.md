@@ -106,6 +106,11 @@ SELECT rdsadmin.rds_file_util.get_file_size(  p_directory => 'DATA_PUMP_DIR',  p
 
 SELECT * FROM TABLE(  rdsadmin.rds_file_util.read_text_file(p_directory => 'DATA_PUMP_DIR', p_filename  => 'expdp.log'));
 SELECT * FROM TABLE(  rdsadmin.rds_file_util.read_text_file(p_directory => 'DATA_PUMP_DIR', p_filename  => 'impdp.log'));
+
+-- Remove file
+EXEC UTL_FILE.FREMOVE('DATA_PUMP_DIR','hr.dmp');
+
+EXEC rdsadmin.rds_file_util.delete_file( p_directory => 'DATA_PUMP_DIR', p_filename  => 'hr.dmp');
 ```
 
 ---
@@ -139,100 +144,39 @@ GRANT CREATE DATABASE LINK TO admin;
 | Speed       | Faster       | Slower             |
 | Resume      | Yes          | No                 |
 | Use case    | Migration    | File movement      |
-| Recommended | ⭐⭐⭐⭐         | ⭐⭐                 |
 
 
 
 
 ----
 ----
-
-# 1️⃣ RDS → RDS EXPORT / IMPORT USING NETWORK_LINK (NO DUMP FILE)
-
-## 🔹 Step 1: Create DB Link on TARGET RDS
-
-Login to **TARGET RDS** as `admin`:
-
-```sql
-CREATE DATABASE LINK src_rds_link
-CONNECT TO admin IDENTIFIED BY "password"
-USING '(DESCRIPTION=
-         (ADDRESS=(PROTOCOL=TCP)(HOST=source-rds-endpoint)(PORT=1521))
-         (CONNECT_DATA=(SERVICE_NAME=ORCL)))';
-```
-
-Test:
-
-```sql
-SELECT * FROM dual@src_rds_link;
-```
-
----
-
-## 🔹 Step 2: Import Using NETWORK_LINK (TARGET side)
-
-### Schema Import (MOST COMMON)
-
-```bash
-impdp admin/password \
-DIRECTORY=DATA_PUMP_DIR \
-NETWORK_LINK=src_rds_link \
-SCHEMAS=HR \
-LOGFILE=hr_net_imp.log
-```
-
-### With Remap
-
-```bash
-impdp admin/password \
-DIRECTORY=DATA_PUMP_DIR \
-NETWORK_LINK=src_rds_link \
-SCHEMAS=HR \
-REMAP_SCHEMA=HR:HR_NEW \
-REMAP_TABLESPACE=USERS:APP_TS \
-PARALLEL=4 \
-LOGFILE=net_imp.log
-```
-
-### Table Level
-
-```bash
-impdp admin/password \
-DIRECTORY=DATA_PUMP_DIR \
-NETWORK_LINK=src_rds_link \
-TABLES=HR.EMP,HR.DEPT
-```
-
-📌 **No expdp needed**
-📌 **No dump file created**
-📌 **Fastest RDS-to-RDS method**
-
-
-
-
----
-
-# 2️⃣ RDS → RDS USING DUMP FILE + S3 (ALTERNATIVE)
-
+#
+# 3️⃣ RDS → RDS USING DUMP FILE + S3 (ALTERNATIVE)
+#
 ## 🔹 Export on SOURCE RDS
 
 ```bash
 expdp admin/password \
 DIRECTORY=DATA_PUMP_DIR \
 SCHEMAS=HR \
-DUMPFILE=hr_%U.dmp \
-LOGFILE=hr_exp.log \
-PARALLEL=4
+DUMPFILE=hr.dmp \
+LOGFILE=hr_exp.log 
 ```
 
 Upload to S3:
 
 ```sql
-exec rdsadmin.rdsadmin_s3_tasks.upload_to_s3(
-  p_bucket_name => 'my-bucket',
-  p_directory_name => 'DATA_PUMP_DIR',
-  p_s3_prefix => 'exports/hr'
-);
+SELECT * FROM TABLE(rdsadmin.rds_file_util.listdir('DATA_PUMP_DIR')) order by mtime;
+
+select  rdsadmin.rdsadmin_s3_tasks.upload_to_s3(
+  p_bucket_name => 'my-S3-bucket',
+  p_prefix => 'hr.dump',
+  p_s3_prefix => 'exports/s3/loation/dir/'
+  p_directory_name => 'DATA_PUMP_DIR')
+as task_id from dual;
+
+
+SELECT * FROM TABLE(rdsadmin.rds_file_util.read_text_file('BDUMP', 'dbtask-<TASK-ID>.log'));
 ```
 
 ---
@@ -240,11 +184,15 @@ exec rdsadmin.rdsadmin_s3_tasks.upload_to_s3(
 ## 🔹 Download on TARGET RDS
 
 ```sql
-exec rdsadmin.rdsadmin_s3_tasks.download_from_s3(
-  p_bucket_name => 'my-bucket',
-  p_directory_name => 'DATA_PUMP_DIR',
-  p_s3_prefix => 'exports/hr'
-);
+Select rdsadmin.rdsadmin_s3_tasks.download_from_s3(
+  p_bucket_name => 'my-S3-bucket',
+  p_s3_prefix => 'exports/s3/loation/dir/hr.dump'
+  p_directory_name => 'DATA_PUMP_DIR')
+as task_id from dual;
+
+
+SELECT * FROM TABLE(rdsadmin.rds_file_util.read_text_file('BDUMP', 'dbtask-<TASK-ID>.log'));
+SELECT * FROM TABLE(rdsadmin.rds_file_util.listdir('DATA_PUMP_DIR')) order by mtime;
 ```
 
 Import:
@@ -252,10 +200,12 @@ Import:
 ```bash
 impdp admin/password \
 DIRECTORY=DATA_PUMP_DIR \
-DUMPFILE=hr_%U.dmp \
+DUMPFILE=hr.dmp \
 REMAP_SCHEMA=HR:HR_NEW \
 PARALLEL=4
 ```
+
+Note : In Linux run in nohup &
 
 
 
