@@ -72,9 +72,9 @@ Default for system privileges
 
 
 
-===================
-auditing oracle DB
-===================
+
+# auditing oracle DB
+
 
 Show parameter audit;
 	none - Database auditing is disabled
