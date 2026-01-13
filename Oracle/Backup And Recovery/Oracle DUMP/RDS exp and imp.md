@@ -1,9 +1,6 @@
----
-
 # 1️⃣ Custom RDS → Custom RDS using NETWORK_LINK (BEST)
 
 ## 🔹 Step 1: Create DB Link on TARGET
-
 
 ```sql
 CREATE DATABASE LINK src_custom_rds
