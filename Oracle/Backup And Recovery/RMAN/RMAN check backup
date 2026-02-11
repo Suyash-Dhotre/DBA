@@ -190,6 +190,11 @@ where status=’RUNNING’
 ===================
 IN User 
 ===================
+et feedback off;
+
+var v_name VARCHAR2(19);
+exec SELECT name INTO :v_name FROM v$database;
+
 col DB format a15 
 set echo off
 set feedback off
@@ -216,3 +221,5 @@ FROM
  WHERE     START_TIME > (CURRENT_DATE-2)
 order by
     start_time;
+
+exit;
