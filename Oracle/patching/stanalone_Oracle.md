@@ -185,3 +185,11 @@ $ORACLE_HOME/OPatch/opatch lspatches
 ✔ Test application
 
 
+
+# List all files held by the 'oracle' user
+lsof -u oracle
+
+# Filter for a specific database name or path
+lsof | grep <DB_NAME>
+
+
