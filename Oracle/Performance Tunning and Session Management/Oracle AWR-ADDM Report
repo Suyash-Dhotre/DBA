@@ -16,3 +16,5 @@ Oracle ADDM Report
 	SYMPTOMS THAT LED TO THE FINDING:
 	Wait class User I/O was consuming significant database time. (83% impact [1336 seconds])
 	
+
+@$ORACLE_HOME/rdbms/admin/spreport.sql
