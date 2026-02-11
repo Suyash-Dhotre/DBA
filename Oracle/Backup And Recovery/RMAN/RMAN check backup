@@ -183,3 +183,36 @@ select recid
 where status=’RUNNING’
    and output_device_type is not null
 /
+
+
+
+
+===================
+IN User 
+===================
+col DB format a15 
+set echo off
+set feedback off
+set colsep |
+set lines 200
+set pages 900
+column OUTPUT_BYTES_DISPLAY for a20
+column INPUT_BYTES_DISPLAY for a20
+col hrs format 999.99
+col "Start" for a20
+col "End" for a20
+col REPLACE(INPUT_TYPE,'','-') for a20
+select :v_name as "DB",
+    to_char(start_time,'YYYY.MM.DD-HH24:MI:SS') "Start" ,
+    to_char(end_time,'YYYY.MM.DD-HH24:MI:SS') "End",
+    elapsed_seconds/3600                   hrs,
+    status,
+    status_weight,
+    replace(input_type,' ','-'),
+    input_bytes_display,
+    output_bytes_display
+FROM
+    V$RMAN_BACKUP_JOB_DETAILS
+ WHERE     START_TIME > (CURRENT_DATE-2)
+order by
+    start_time;
