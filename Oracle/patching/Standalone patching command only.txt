@@ -1,0 +1,74 @@
+-- Zip
+tar -cvf /dbback/JAN25_patch/BKP/DBHOME_BKP_29012025.tar /oracle/u01/app/oracle/product/19c/dbhome
+
+-- Gun zip
+tar -cvzf /dbback/patch_july24/BKP/DBHOME_BKP_12082024.tar.gz /oracle/product/19.3.0/db_1
+
+-- Extract
+tar -xvf archive.tar.gz -C /path/to/directory
+
+
+-- Pre backups pfile and control file
+CREATE PFILE='/dbback/OCT24_patch/BKP/initD121P.ora' FROM SPFILE;
+alter database backup controlfile to '/dbback/OCT24_patch/BKP/controld121p15112024.ctl';
+
+
+
+-- Pre check
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ &
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch prereq CheckActiveFilesAndExecutables -ph ./ &
+
+-- Pre check with jdk
+## -- nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch prereq CheckConflictAgainstOHWithDetail -ph ./ -jdk $ORACLE_HOME/jdk &
+## -- nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch prereq CheckActiveFilesAndExecutables -ph ./ -jdk $ORACLE_HOME/jdk &
+
+-- apply patch
+cd /dbback/19c_software/patch/37960098
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply -silent &
+
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/19c_software/patch/37960098 -silent &
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JULY25_patch/OJVM/37847857 -silent &
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JULY25_patch/JDK/37860476 -silent &
+nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JULY25_patch/OJVM/37847857 -silent &
+
+
+-- apply patch with jdk
+## -- nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JAN25_patch/37260974 -silent -jdk $ORACLE_HOME/jdk &
+## -- nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JAN25_patch/OJVM/37102264 -silent -jdk $ORACLE_HOME/jdk &
+## -- nohup /oracle/u01/app/oracle/product/19c/dbhome/OPatch/opatch apply /dbback/JAN25_patch/OJVM/37102264 -silent -jdk /dbback/JAN25_patch/BKP/oracle/u01/app/oracle/product/19c/dbhome/jdk
+
+
+
+-- alternate JDK
+./opatch version -jdk /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.432.b06-2.el8.x86_64/jre/
+
+jdk /usr/lib/jvm/java-1.8.0-openjdk-1.8.0.432.b06-2.el8.x86_64/jre/
+
+
+-- Data patch verbose
+nohup ./datapatch -verbose &
+
+
+-- Check Registry
+set lines 300;
+col ACTION for a15
+col VERSION for a15
+col ACTION_TIME for a40
+col OBJECT_NAME for a40
+col DESCRIPTION for a70
+select name, open_mode, log_mode from v$database;
+SELECT dbms_java.get_ojvm_property(PROPSTRING=>'java.version') FROM dual;
+select PATCH_ID,PATCH_UID,ACTION,STATUS,ACTION_TIME,DESCRIPTION from sys.dba_registry_sqlpatch;
+
+
+
+
+---- Data guard stop/start
+select sequence#, first_time, next_time, applied, archived from v$archived_log order by first_time;
+select process, status, sequence# from v$managed_standby;
+ALTER DATABASE RECOVER MANAGED STANDBY DATABASE DISCONNECT FROM SESSION;
+alter database recover managed standby database cancel;
+
+
+
+
