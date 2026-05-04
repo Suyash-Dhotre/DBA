@@ -156,3 +156,14 @@ NOAUDIT POLICY mypolicy BY HR ; --(unified) (all user)
 ```
 
 
+
+---
+```SQL
+-- Check the current status
+SHOW PARAMETER audit_sys_operations;
+
+-- If it is FALSE, enable it (requires a restart)
+ALTER SYSTEM SET audit_sys_operations=TRUE SCOPE=SPFILE;
+```
+
+
