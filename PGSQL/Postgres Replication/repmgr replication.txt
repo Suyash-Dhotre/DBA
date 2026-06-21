@@ -1,0 +1,272 @@
+*** Both node
+yum install repmgr17 -y   # or pg version based package
+
+repmgr --version
+
+
+** primary
+== IMP Parameters -- need pg_ctl reload or restart
+listen_addresses = '*'
+wal_level = replica
+max_wal_senders = 10
+max_replication_slots = 10
+hot_standby = on
+wal_log_hints = ON
+==
+
+== add entry $PGDATA/pg_hba.conf -- need pg_ctl reload or restart
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            scram-sha-256
+host    replication     all             ::1/128                 scram-sha-256
+host    replication     repluser        192.168.56.102/32       scram-sha-256
+host    all             repluser        192.168.56.102/32       scram-sha-256
+host    all             postgres        192.168.56.102/32       scram-sha-256
+host    all             postgres        192.168.56.101/32       scram-sha-256
+host    replication     repmgr          192.168.56.101/32       scram-sha-256
+host    all             repmgr          192.168.56.101/32       scram-sha-256
+host    replication     repmgr          192.168.56.102/32       scram-sha-256
+host    all             repmgr          192.168.56.102/32       scram-sha-256
+==
+
+
+== Create user and repmgr DB
+CREATE ROLE repmgr WITH REPLICATION LOGIN PASSWORD 'StrongPass';
+
+CREATE DATABASE repmgr OWNER repmgr;
+==
+
+
+== On Both (as postgres user)
+echo "192.168.56.101:5432:replication:repmgr:123" >> /var/lib/pgsql/.pgpass
+echo "192.168.56.101:5432:repmgr:repmgr:123" >> /var/lib/pgsql/.pgpass
+chmod 600 ~/.pgpass
+
+192.168.56.101:5432:repmgr:repmgr:123
+192.168.56.101:5432:repmgr:postgres:123
+192.168.56.102:5432:repmgr:repmgr:123
+192.168.56.102:5432:replication:repmgr:123
+192.168.56.102:5432:repmgr:postgres:123
+192.168.56.101:5432:replication:repmgr:123
+192.168.56.101:5432:repmgr:repmgr:123
+==
+
+
+== create repmgr.conf
+
+--> primary
+node_id=1
+node_name='node1'
+conninfo='host=192.168.56.101 user=repmgr dbname=repmgr connect_timeout=2'
+data_directory='/var/lib/pgsql/17/data'
+pg_bindir='/usr/pgsql-17/bin'
+
+use_replication_slots=yes
+reconnect_attempts=2
+reconnect_interval=5
+
+passfile='/var/lib/pgsql/.pgpass'
+
+failover=automatic
+promote_command='/usr/pgsql-17/bin/repmgr standby promote -f /etc/repmgr/17/repmgr.conf --siblings-follow'
+follow_command='/usr/pgsql-17/bin/repmgr standby follow -f /etc/repmgr/17/repmgr.conf --upstream-node-id=%n'
+priority=100
+
+monitoring_history=yes
+monitor_interval_secs=2
+connection_check_type='connection'
+
+log_level=INFO
+log_file='/var/log/repmgr/repmgrd.log'
+log_status_interval=10
+
+
+
+
+
+--> standby
+node_id=2
+node_name='node2'
+conninfo='host=192.168.56.102 user=repmgr dbname=repmgr connect_timeout=2'
+data_directory='/var/lib/pgsql/17/data'
+pg_bindir='/usr/pgsql-17/bin'
+
+use_replication_slots=yes
+reconnect_attempts=2
+reconnect_interval=5
+
+passfile='/var/lib/pgsql/.pgpass'
+
+failover=automatic
+promote_command='/usr/pgsql-17/bin/repmgr standby promote -f /etc/repmgr/17/repmgr.conf --siblings-follow'
+follow_command='/usr/pgsql-17/bin/repmgr standby follow -f /etc/repmgr/17/repmgr.conf --upstream-node-id=%n'
+priority=100
+
+monitoring_history=yes
+monitor_interval_secs=2
+connection_check_type='connection'
+
+log_level=INFO
+log_file='/var/log/repmgr/repmgrd.log'
+log_status_interval=10
+
+
+
+
+
+
+===## Register Primary Node
+--> on primary
+export PGPASSWORD='*****'
+repmgr primary register
+repmgr primary register -S postgres
+
+repmgr cluster show
+
+
+== Clone Standby (IMPORTANT)
+--> on standby
+repmgr -h 192.168.56.101 -U repmgr -d repmgr standby clone --dry-run
+repmgr -h 192.168.56.101 -U repmgr -d repmgr standby clone
+
+
+pg_ctl -D /var/lib/pgsql/17/data start
+sudo systemctl start postgresql-17.service
+
+repmgr standby register
+repmgr standby register --force
+
+repmgr standby follow --force --> For repllication slot creation
+
+
+== Verify Cluster
+repmgr cluster show
+
+repmgr cluster show
+repmgr node status
+
+--> Primary
+select * from pg_stat_replication;
+
+--> Standby
+select * from pg_stat_wal_receiver;
+
+repmgr -f /etc/repmgr/17/repmgr.conf cluster event
+
+
+
+== Switchover
+-- no pass ssh on buth side
+
+repmgr standby follow --->slot repliation follow
+
+repmgr standby switchover -S postgres -R postgres
+repmgr standby switchover
+
+repmgr cluster show
+
+
+
+
+== Replication Lag
+SELECT pg_size_pretty(
+pg_wal_lsn_diff(sent_lsn,replay_lsn)
+)
+FROM pg_stat_replication;
+
+SELECT application_name,
+       state,
+       sync_state,
+       pg_size_pretty(
+         pg_wal_lsn_diff(sent_lsn,replay_lsn)
+       ) AS lag
+FROM pg_stat_replication;
+
+
+
+
+== Failover
+repmgr standby promote
+
+
+!!!-- Need to check 
+##== Enable Automatic Failover
+
+-- Find the line (it might be commented out) and change it to:
+shared_preload_libraries = 'repmgr'
+
+systemctl list-unit-files | grep repmgr
+     repmgr-17.service                              enabled
+
+sudo systemctl enable repmgr-17.service   
+
+
+vi /etc/repmgr/17/repmgr.conf
+     failover=automatic
+     promote_command='repmgr standby promote -f /etc/repmgr/17/repmgr.conf'
+     follow_command='repmgr standby follow -f /etc/repmgr/17/repmgr.conf'
+
+
+## repmgrd -f /etc/repmgr/17/repmgr.conf  --->manually
+sudo systemctl start repmgr-17.service 
+
+
+--- OS jeneral
+
+sudo journalctl -u repmgr-17.service -n 50
+
+Jun 02 10:05:13 pg-server-02 systemd[1]: Failed to start A replication manager, and failover management tool for PostgreSQL.
+Jun 02 10:05:51 pg-server-02 systemd[1]: Starting A replication manager, and failover management tool for PostgreSQL...
+Jun 02 10:05:51 pg-server-02 repmgrd[3891]: [2026-06-02 10:05:51] [NOTICE] using provided configuration file "/etc/repmgr/17/repmgr.conf"
+Jun 02 10:05:51 pg-server-02 repmgrd[3891]: [2026-06-02 10:05:51] [NOTICE] repmgrd (repmgrd 5.5.0) starting up
+Jun 02 10:05:51 pg-server-02 repmgrd[3891]: [2026-06-02 10:05:51] [INFO] connecting to database "host=192.168.56.102 user=repmgr dbname=repmgr connect_timeout=2"
+Jun 02 10:05:51 pg-server-02 systemd[1]: repmgr-17.service: Can't open PID file /run/repmgr/repmgrd-17.pid (yet?) after start: No such file or directory
+Jun 02 10:05:51 pg-server-02 repmgrd[3897]: [2026-06-02 10:05:51] [ERROR] could not open PID file /var/run/repmgrd-17.pid
+
+
+--!!! Issue of PID file resolve using below edit 
+systemctl cat repmgr-17
+systemctl edit repmgr-17
+
+#add below
+     ExecStart=/usr/pgsql-17/bin/repmgrd -f ${REPMGRDCONF} -p ${PIDFILE} -d --verbose --pid-file=/run/repmgr/repmgrd-17.pid
+
+     or 
+
+     ExecStart=/usr/pgsql-17/bin/repmgrd -f /etc/repmgr/17/repmgr.conf -p /run/repmgr/repmgrd-17.pid -d --verbose --pid-file=/run/repmgr/repmgrd-17.pid
+
+--- Show service status
+repmgr service status
+
+
+psql -U repmgr -d repmgr -c "SELECT * FROM repmgr.nodes;"
+
+
+-- Rejoin
+
+on node 1 -- failed node
+repmgr -f /etc/repmgr/17/repmgr.conf node rejoin -d "host=192.168.56.102 user=repmgr dbname=repmgr" --force
+
+on node 2 -- failed node
+repmgr -f /etc/repmgr/17/repmgr.conf node rejoin -d "host=192.168.56.101 user=repmgr dbname=repmgr" --force
+
+
+
+-- Fore rewind on failed one if not cathing up
+repmgr -f /etc/repmgr/17/repmgr.conf node rejoin -d "host=192.168.56.101 user=repmgr dbname=repmgr" --force-rewind
+
+
+-- Execute these on Both Node 2 via psql
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_ls_dir(text, boolean, boolean) TO repmgr;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_stat_file(text, boolean) TO repmgr;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_binary_file(text) TO repmgr;
+GRANT EXECUTE ON FUNCTION pg_catalog.pg_read_binary_file(text, bigint, bigint, boolean) TO repmgr;
+
+
+# Execute this on primary
+psql -d postgres -c "ALTER USER repmgr WITH SUPERUSER;" 
+
+# after rewind completed
+psql -d postgres -c "ALTER USER repmgr WITH NOSUPERUSER;"
+
+
+

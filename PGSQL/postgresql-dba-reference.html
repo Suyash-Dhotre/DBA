@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostgreSQL DBA Reference</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080e1a;--bg2:#0d1626;--bg3:#111e35;--surface:#142040;--surface2:#1a2d57;
+  --border:#1e3a6e;--accent:#3b82f6;--accent2:#60a5fa;--accent3:#93c5fd;
+  --green:#34d399;--yellow:#fbbf24;--red:#f87171;--orange:#fb923c;--purple:#a78bfa;
+  --text:#e2eaf7;--text2:#94a3b8;--text3:#64748b;--code-bg:#0a1628;--glow:rgba(59,130,246,0.15);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.6;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 20% 10%,rgba(59,130,246,0.07) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 80% 80%,rgba(99,102,241,0.05) 0%,transparent 60%);pointer-events:none;z-index:0;}
+.header{position:sticky;top:0;z-index:100;background:rgba(8,14,26,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 2rem;}
+.header-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px;}
+.logo{display:flex;align-items:center;gap:12px;}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),#6366f1);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 20px rgba(59,130,246,0.4);}
+.logo-text{font-size:1.1rem;font-weight:700;letter-spacing:-0.02em;}
+.logo-text span{color:var(--accent2);}
+.nav{display:flex;gap:4px;flex-wrap:wrap;}
+.nav a{color:var(--text2);text-decoration:none;font-size:0.72rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:6px 10px;border-radius:6px;transition:all 0.2s;}
+.nav a:hover{color:var(--accent2);background:rgba(59,130,246,0.1);}
+.hero{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:5rem 2rem 3rem;text-align:center;}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);border-radius:100px;padding:6px 16px;font-size:0.75rem;font-family:'JetBrains Mono',monospace;color:var(--accent2);margin-bottom:2rem;letter-spacing:0.08em;}
+.hero-badge::before{content:'●';color:var(--green);font-size:0.6rem;}
+.hero h1{font-size:clamp(2.5rem,6vw,5rem);font-weight:800;line-height:1.05;letter-spacing:-0.04em;margin-bottom:1.5rem;}
+.hero h1 .pg{color:var(--accent2);}
+.hero p{font-size:1.1rem;color:var(--text2);max-width:600px;margin:0 auto 3rem;}
+.hero-stats{display:flex;justify-content:center;gap:3rem;flex-wrap:wrap;}
+.stat-num{font-size:2rem;font-weight:800;color:var(--accent2);font-family:'JetBrains Mono',monospace;}
+.stat-label{font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-top:2px;}
+.container{max-width:1400px;margin:0 auto;padding:0 2rem 4rem;position:relative;z-index:1;}
+.section{margin-bottom:4rem;}
+.section-header{display:flex;align-items:center;gap:1rem;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border);}
+.section-num{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--accent);background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);padding:2px 8px;border-radius:4px;letter-spacing:0.1em;}
+.section-title{font-size:1.6rem;font-weight:700;letter-spacing:-0.02em;}
+.section-title span{color:var(--accent2);}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;transition:border-color 0.2s,box-shadow 0.2s;}
+.card:hover{border-color:var(--accent);box-shadow:0 0 30px var(--glow);}
+.card-title{font-size:1rem;font-weight:700;color:var(--accent2);margin-bottom:1rem;display:flex;align-items:center;gap:8px;}
+.card-title::before{content:'▸';color:var(--accent);font-size:0.8rem;}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:1.5rem;}
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);margin-bottom:1rem;}
+table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+thead tr{background:var(--surface);}
+th{padding:10px 14px;text-align:left;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent2);white-space:nowrap;}
+td{padding:9px 14px;border-top:1px solid rgba(30,58,110,0.5);color:var(--text2);vertical-align:top;}
+tr:hover td{background:rgba(59,130,246,0.04);}
+.mono{font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--accent3);}
+.tag-static{display:inline-block;background:rgba(248,113,113,0.15);color:var(--red);border:1px solid rgba(248,113,113,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;font-family:'JetBrains Mono',monospace;font-weight:700;}
+.tag-dynamic{display:inline-block;background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);border-radius:4px;padding:1px 6px;font-size:0.65rem;font-family:'JetBrains Mono',monospace;font-weight:700;}
+pre{background:var(--code-bg);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:1.2rem 1.4rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;color:var(--text2);margin:0.5rem 0;}
+.process-tree{background:var(--code-bg);border:1px solid var(--border);border-left:3px solid var(--purple);border-radius:8px;padding:1.2rem 1.4rem;font-family:'JetBrains Mono',monospace;font-size:0.78rem;color:var(--text2);white-space:pre;overflow-x:auto;line-height:1.7;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:0.68rem;font-weight:700;letter-spacing:0.05em;font-family:'JetBrains Mono',monospace;}
+.badge-blue{background:rgba(59,130,246,0.15);color:var(--accent2);border:1px solid rgba(59,130,246,0.3);}
+.badge-green{background:rgba(52,211,153,0.15);color:var(--green);border:1px solid rgba(52,211,153,0.3);}
+.badge-red{background:rgba(248,113,113,0.15);color:var(--red);border:1px solid rgba(248,113,113,0.3);}
+.badge-yellow{background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);}
+.alert{border-radius:8px;padding:1rem 1.2rem;margin:1rem 0;font-size:0.85rem;}
+.alert-warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);color:var(--yellow);}
+.alert-info{background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);color:var(--accent2);}
+.alert-success{background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);color:var(--green);}
+.toc{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:2rem;margin-bottom:3rem;}
+.toc-title{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;color:var(--accent);margin-bottom:1.5rem;font-family:'JetBrains Mono',monospace;}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
+.toc-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;text-decoration:none;color:var(--text2);font-size:0.82rem;transition:all 0.2s;border:1px solid transparent;}
+.toc-item:hover{color:var(--accent2);background:rgba(59,130,246,0.08);border-color:rgba(59,130,246,0.2);}
+.toc-item-num{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--accent);min-width:20px;}
+.param-critical td{border-left:2px solid var(--red);}
+.param-important td{border-left:2px solid var(--yellow);}
+footer{position:relative;z-index:1;text-align:center;padding:3rem 2rem;border-top:1px solid var(--border);color:var(--text3);font-size:0.8rem;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">🐘</div>
+      <div class="logo-text"><span>PostgreSQL</span> DBA Reference</div>
+    </div>
+    <nav class="nav">
+      <a href="#backup">Backup</a>
+      <a href="#barman">Barman</a>
+      <a href="#params">Parameters</a>
+      <a href="#memory">Memory</a>
+      <a href="#processes">Processes</a>
+      <a href="#install">Install</a>
+      <a href="#upgrade">Upgrade</a>
+      <a href="#replication">Replication</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-badge">PostgreSQL DBA Comprehensive Reference · 2026</div>
+  <h1><span class="pg">PostgreSQL</span><br>DBA Playbook</h1>
+  <p>Complete reference covering backup, archiving, memory architecture, background processes, installation, upgrades, and replication.</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-num">8</div><div class="stat-label">Topic Areas</div></div>
+    <div class="stat"><div class="stat-num">50+</div><div class="stat-label">Key Parameters</div></div>
+    <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Code Examples</div></div>
+    <div class="stat"><div class="stat-num">PG16</div><div class="stat-label">Version Coverage</div></div>
+  </div>
+</div>
+
+<div class="container">
+
+<div class="toc">
+  <div class="toc-title">// Table of Contents</div>
+  <div class="toc-grid">
+    <a href="#backup" class="toc-item"><span class="toc-item-num">01</span> Backup Types</a>
+    <a href="#pitr" class="toc-item"><span class="toc-item-num">02</span> WAL &amp; PITR</a>
+    <a href="#barman" class="toc-item"><span class="toc-item-num">03</span> Barman</a>
+    <a href="#wal-params" class="toc-item"><span class="toc-item-num">04</span> WAL Parameters</a>
+    <a href="#archive-params" class="toc-item"><span class="toc-item-num">05</span> Archive Parameters</a>
+    <a href="#log-params" class="toc-item"><span class="toc-item-num">06</span> Log Parameters</a>
+    <a href="#temp-params" class="toc-item"><span class="toc-item-num">07</span> Temp Parameters</a>
+    <a href="#memory" class="toc-item"><span class="toc-item-num">08</span> Memory Architecture</a>
+    <a href="#processes" class="toc-item"><span class="toc-item-num">09</span> Background Processes</a>
+    <a href="#must-params" class="toc-item"><span class="toc-item-num">10</span> Must-Know Params</a>
+    <a href="#install" class="toc-item"><span class="toc-item-num">11</span> RPM/DEB Install</a>
+    <a href="#tar-install" class="toc-item"><span class="toc-item-num">12</span> TAR Install</a>
+    <a href="#upgrade" class="toc-item"><span class="toc-item-num">13</span> Minor Upgrade</a>
+    <a href="#major-upgrade" class="toc-item"><span class="toc-item-num">14</span> Major Upgrade</a>
+    <a href="#streaming-rep" class="toc-item"><span class="toc-item-num">15</span> Streaming Replication</a>
+    <a href="#logical-rep" class="toc-item"><span class="toc-item-num">16</span> Logical Replication</a>
+  </div>
+</div>
+
+<!-- BACKUP -->
+<section class="section" id="backup">
+  <div class="section-header"><span class="section-num">01</span><h2 class="section-title">Backup <span>Strategy</span></h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Type</th><th>Tool</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Logical</td><td class="mono">pg_dump, pg_dumpall</td><td>Portable, schema+data, slow on large DBs</td></tr>
+        <tr><td>Physical</td><td class="mono">pg_basebackup</td><td>Block-level, fast, requires same PG version</td></tr>
+        <tr><td>PITR</td><td class="mono">WAL archiving + pg_basebackup</td><td>Recover to any timestamp/LSN/XID</td></tr>
+        <tr><td>Incremental</td><td class="mono">pg_basebackup (PG17+) / pgBackRest</td><td>WAL-based increments</td></tr>
+        <tr><td>Verification</td><td class="mono">pg_verifybackup</td><td>PG13+ — validates backup_manifest checksums</td></tr>
+        <tr><td>Enterprise</td><td class="mono">Barman, pgBackRest, WAL-G</td><td>Retention, cloud, compression, monitoring</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Logical Backup — pg_dump</div>
+<pre># Single DB — custom format (recommended)
+pg_dump -Fc -d mydb -f mydb.dump
+
+# Parallel dump — directory format, 4 jobs
+pg_dump -Fd -j 4 -d mydb -f /backup/mydb_dir/
+
+# All databases + globals
+pg_dumpall -f full.sql
+pg_dumpall -g -f globals_only.sql  # roles only
+
+# Restore
+pg_restore -d mydb -Fc --jobs=4 mydb.dump
+pg_restore --list mydb.dump        # verify contents</pre>
+    </div>
+    <div class="card">
+      <div class="card-title">Physical Backup — pg_basebackup</div>
+<pre># Full backup with WAL streaming
+pg_basebackup -h localhost -U replicator \
+  -D /backup/base/ -Ft -z \
+  --wal-method=stream -P
+
+# Incremental (PostgreSQL 17+)
+pg_basebackup -D /backup/inc1/ \
+  --incremental=/backup/base/backup_manifest
+
+# Verify backup integrity (PG13+)
+pg_verifybackup /backup/base/</pre>
+    </div>
+  </div>
+</section>
+
+<!-- WAL & PITR -->
+<section class="section" id="pitr">
+  <div class="section-header"><span class="section-num">02</span><h2 class="section-title">WAL Archiving <span>&amp; PITR</span></h2></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">WAL Archiving Setup</div>
+<pre># postgresql.conf
+archive_mode = on
+archive_command = 'cp %p /mnt/wal_archive/%f'
+archive_timeout = 300   # force switch every 5 min
+
+# Force WAL switch manually
+SELECT pg_switch_wal();
+SELECT * FROM pg_stat_archiver;</pre>
+    </div>
+    <div class="card">
+      <div class="card-title">PITR Recovery Configuration</div>
+<pre># postgresql.conf (recovery server)
+restore_command = 'cp /mnt/wal_archive/%f %p'
+recovery_target_time = '2026-05-27 10:30:00'
+recovery_target_action = 'promote'
+
+# Create recovery trigger
+touch /pgdata/16/data/recovery.signal
+# Start PG — recovers to target then promotes</pre>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Recovery Target</th><th>Parameter</th><th>Example Value</th></tr></thead>
+      <tbody>
+        <tr><td>Timestamp</td><td class="mono">recovery_target_time</td><td class="mono">'2026-05-27 10:30:00'</td></tr>
+        <tr><td>LSN</td><td class="mono">recovery_target_lsn</td><td class="mono">'0/1500000'</td></tr>
+        <tr><td>Transaction ID</td><td class="mono">recovery_target_xid</td><td class="mono">'1234567'</td></tr>
+        <tr><td>Named restore point</td><td class="mono">recovery_target_name</td><td class="mono">'before_migration'</td></tr>
+        <tr><td>Post-action</td><td class="mono">recovery_target_action</td><td class="mono">pause / promote / shutdown</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- BARMAN -->
+<section class="section" id="barman">
+  <div class="section-header"><span class="section-num">03</span><h2 class="section-title">Barman <span>Backup Manager</span></h2></div>
+  <div class="alert alert-success">✅ FREE &amp; open source (EDB). Features: integrated PITR, native retention policies, WAL streaming, S3/Azure/GCS, Nagios plugin (check_barman).</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">barman.conf Configuration</div>
+<pre>[barman]
+barman_home = /var/lib/barman
+compression = gzip
+parallel_jobs = 2
+
+[pg-server]
+description = "Primary PostgreSQL"
+conninfo = host=pghost user=barman dbname=postgres
+streaming_conninfo = host=pghost user=streaming_barman
+backup_method = postgres
+streaming_archiver = on
+slot_name = barman_slot
+retention_policy = RECOVERY WINDOW OF 14 DAYS
+minimum_redundancy = 1
+wal_retention_policy = main</pre>
+    </div>
+    <div class="card">
+      <div class="card-title">Key Barman Commands</div>
+<pre># Health check
+barman check pg-server
+
+# Take full backup
+barman backup pg-server
+
+# List backups
+barman list-backup pg-server
+
+# PITR restore (one command — fully integrated)
+barman recover pg-server latest /pgdata \
+  --target-time "2026-05-27 10:30:00" \
+  --remote-ssh-command "ssh postgres@dbserver"
+
+# WAL management &amp; retention enforcement
+barman switch-wal pg-server
+barman cron
+barman check-backup pg-server 20260527T100000</pre>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Feature</th><th>Barman</th><th>Native pg_basebackup</th></tr></thead>
+      <tbody>
+        <tr><td>Cost</td><td><span class="badge badge-green">FREE</span></td><td><span class="badge badge-green">FREE</span></td></tr>
+        <tr><td>Integrated PITR</td><td><span class="badge badge-green">✅ One command</span></td><td><span class="badge badge-yellow">Manual WAL apply</span></td></tr>
+        <tr><td>Retention policy</td><td><span class="badge badge-green">✅ Native</span></td><td><span class="badge badge-red">❌ External scripts</span></td></tr>
+        <tr><td>Cloud (S3/Azure/GCS)</td><td><span class="badge badge-green">✅ Plugins</span></td><td><span class="badge badge-red">❌</span></td></tr>
+        <tr><td>Nagios monitoring</td><td><span class="badge badge-green">✅ check_barman</span></td><td><span class="badge badge-red">❌</span></td></tr>
+        <tr><td>Incremental</td><td><span class="badge badge-green">✅ WAL-based</span></td><td><span class="badge badge-yellow">PG17+ only</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PARAMETERS -->
+<section class="section" id="params">
+  <div class="section-header"><span class="section-num">04–07</span><h2 class="section-title">Key <span>Parameters</span></h2></div>
+
+  <div id="wal-params" class="card">
+    <div class="card-title">WAL Parameters</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">wal_level</td><td class="mono">replica</td><td><span class="tag-static">STATIC</span></td><td>minimal / replica / logical</td></tr>
+          <tr><td class="mono">wal_buffers</td><td class="mono">-1 (auto)</td><td><span class="tag-static">STATIC</span></td><td>Shared WAL write buffer (auto=1/32 shared_buffers)</td></tr>
+          <tr><td class="mono">wal_segment_size</td><td class="mono">16MB</td><td><span class="tag-static">STATIC</span></td><td>Size of each WAL segment file</td></tr>
+          <tr><td class="mono">max_wal_size</td><td class="mono">1GB</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Max WAL size before forced checkpoint</td></tr>
+          <tr><td class="mono">min_wal_size</td><td class="mono">80MB</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Min WAL disk before recycling</td></tr>
+          <tr><td class="mono">wal_compression</td><td class="mono">off</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Compress WAL full-page writes</td></tr>
+          <tr><td class="mono">wal_keep_size</td><td class="mono">0</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Min WAL retained for standbys (MB)</td></tr>
+          <tr><td class="mono">synchronous_commit</td><td class="mono">on</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>on/off/local/remote_write/remote_apply</td></tr>
+          <tr><td class="mono">full_page_writes</td><td class="mono">on</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Write full pages after checkpoint</td></tr>
+          <tr><td class="mono">checkpoint_timeout</td><td class="mono">5min</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Max time between checkpoints</td></tr>
+          <tr><td class="mono">checkpoint_completion_target</td><td class="mono">0.9</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Spread checkpoint I/O over this fraction</td></tr>
+          <tr><td class="mono">wal_log_hints</td><td class="mono">off</td><td><span class="tag-static">STATIC</span></td><td>Required for pg_rewind</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="archive-params" class="card">
+    <div class="card-title">Archiving Parameters</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">archive_mode</td><td class="mono">off</td><td><span class="tag-static">STATIC</span></td><td>off / on / always</td></tr>
+          <tr><td class="mono">archive_command</td><td class="mono">''</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Shell command to archive WAL segment</td></tr>
+          <tr><td class="mono">archive_timeout</td><td class="mono">0</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Force WAL switch after N seconds</td></tr>
+          <tr><td class="mono">archive_library</td><td class="mono">''</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Library-based archiving (PG15+)</td></tr>
+          <tr><td class="mono">restore_command</td><td class="mono">''</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Command to retrieve archived WAL for recovery</td></tr>
+          <tr><td class="mono">archive_cleanup_command</td><td class="mono">''</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Cleanup old WAL on standby</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="log-params" class="card">
+    <div class="card-title">Logging Parameters</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">logging_collector</td><td class="mono">off</td><td><span class="tag-static">STATIC</span></td><td>Enable background log collector process</td></tr>
+          <tr><td class="mono">log_destination</td><td class="mono">stderr</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>stderr / csvlog / jsonlog / syslog</td></tr>
+          <tr><td class="mono">log_directory</td><td class="mono">log</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log file directory</td></tr>
+          <tr><td class="mono">log_filename</td><td class="mono">postgresql-%Y-%m-%d.log</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log filename pattern</td></tr>
+          <tr><td class="mono">log_min_duration_statement</td><td class="mono">-1</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log slow queries (ms); -1=off</td></tr>
+          <tr><td class="mono">log_checkpoints</td><td class="mono">on</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log checkpoint activity</td></tr>
+          <tr><td class="mono">log_lock_waits</td><td class="mono">off</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log lock waits exceeding deadlock_timeout</td></tr>
+          <tr><td class="mono">log_autovacuum_min_duration</td><td class="mono">10min</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log autovacuum runs exceeding this</td></tr>
+          <tr><td class="mono">log_line_prefix</td><td class="mono">%m [%p]</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Prefix format for each log line</td></tr>
+          <tr><td class="mono">log_statement</td><td class="mono">none</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>none / ddl / mod / all</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="temp-params" class="card">
+    <div class="card-title">Temp File Parameters</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">work_mem</td><td class="mono">4MB</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Per sort/hash node per query — multiplies fast!</td></tr>
+          <tr><td class="mono">maintenance_work_mem</td><td class="mono">64MB</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Memory for VACUUM, CREATE INDEX</td></tr>
+          <tr><td class="mono">temp_file_limit</td><td class="mono">-1</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Max temp file per session; -1=unlimited</td></tr>
+          <tr><td class="mono">temp_tablespaces</td><td class="mono">''</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Tablespace(s) for temp files</td></tr>
+          <tr><td class="mono">log_temp_files</td><td class="mono">-1</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Log temp files larger than N kB; 0=log all</td></tr>
+          <tr><td class="mono">hash_mem_multiplier</td><td class="mono">2.0</td><td><span class="tag-dynamic">DYNAMIC</span></td><td>Multiplier for hash ops over work_mem</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="alert alert-warn">⚠️ work_mem explosion risk: complex query with 5 sort nodes × 100 connections = 500 × work_mem. Set conservatively globally; override per session: SET work_mem = '256MB';</div>
+  </div>
+</section>
+
+<!-- MEMORY -->
+<section class="section" id="memory">
+  <div class="section-header"><span class="section-num">08</span><h2 class="section-title">Memory <span>Architecture</span></h2></div>
+  <div class="card">
+    <div class="card-title">Memory Layout Diagram</div>
+    <div class="process-tree">SHARED MEMORY (OS shared memory segment)
+├── Shared Buffers        ← Main page cache (heap + index pages)
+│     ├── Buffer descriptors (metadata array)
+│     ├── 8kB data pages (actual page content)
+│     ├── Clock-sweep replacement algorithm
+│     └── Recommended: ~25% of total RAM
+├── WAL Buffers           ← wal_buffers (auto = 1/32 of shared_buffers)
+├── Lock Space            ← max_locks_per_transaction
+├── Commit Timestamps     ← track_commit_timestamp
+└── Background Workers    ← max_worker_processes slots
+
+PER-PROCESS LOCAL MEMORY (one set per backend process)
+├── work_mem              ← Per sort/hash NODE per query (4MB default)
+├── temp_buffers          ← Per-session temp table cache (8MB)
+└── maintenance_work_mem  ← VACUUM / CREATE INDEX (64MB default)</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Shared Buffers Parameters</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Parameter</th><th>Recommended</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">shared_buffers</td><td class="mono">25% RAM</td><td><span class="tag-static">STATIC</span></td></tr>
+            <tr><td class="mono">effective_cache_size</td><td class="mono">75% RAM</td><td><span class="tag-dynamic">DYNAMIC</span></td></tr>
+            <tr><td class="mono">huge_pages</td><td class="mono">try</td><td><span class="tag-static">STATIC</span></td></tr>
+            <tr><td class="mono">huge_page_size</td><td class="mono">0 (OS default)</td><td><span class="tag-static">STATIC</span></td></tr>
+            <tr><td class="mono">temp_buffers</td><td class="mono">8MB</td><td><span class="tag-dynamic">DYNAMIC</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Total Memory Sizing Formula</div>
+<pre># Total RAM estimate
+  shared_buffers          (25% RAM)
++ max_connections
+    × work_mem × avg_sort_nodes
++ max_connections × temp_buffers
++ maintenance_work_mem
+    × autovacuum_max_workers
++ OS page cache           (~50% — PG relies on it)
++ wal_buffers
+
+# Buffer hit ratio monitoring
+SELECT sum(blks_hit) * 100.0 /
+  (sum(blks_hit) + sum(blks_read)) AS hit_ratio
+FROM pg_stat_database;
+
+# Buffer contents (requires pg_buffercache ext)
+SELECT c.relname, count(*) AS buffers
+FROM pg_buffercache b
+JOIN pg_class c ON b.relfilenode = pg_relation_filenode(c.oid)
+GROUP BY c.relname ORDER BY buffers DESC LIMIT 20;</pre>
+    </div>
+  </div>
+  <div class="alert alert-info">ℹ️ PostgreSQL double-buffering: a page can exist in both shared_buffers AND OS page cache. Setting shared_buffers to ~25% RAM accounts for this overlap. Enable huge_pages=on to reduce TLB pressure on large servers. Unlike MySQL InnoDB, PostgreSQL intentionally leverages the OS page cache.</div>
+</section>
+
+<!-- BACKGROUND PROCESSES -->
+<section class="section" id="processes">
+  <div class="section-header"><span class="section-num">09</span><h2 class="section-title">Background <span>Processes</span></h2></div>
+  <div class="card">
+    <div class="card-title">Process Tree (Multi-Process Architecture)</div>
+    <div class="process-tree">postmaster (PID 1 — supervisor, listener, crash recovery coordinator)
+├── checkpointer              ← flushes dirty shared_buffers pages at checkpoint
+├── background writer         ← proactively writes dirty pages to reduce stalls
+├── WAL writer                ← periodically flushes WAL buffers → WAL segments
+├── WAL archiver              ← copies completed WAL segments to archive_command
+├── autovacuum launcher       ← schedules VACUUM/ANALYZE workers
+│     └── autovacuum worker   (×autovacuum_max_workers, spawned dynamically)
+├── stats collector           ← pg_stat_* data collection (PG14 and below)
+├── logical replication launcher
+│     └── logical replication worker (one per active subscription)
+├── WAL receiver              ← STANDBY ONLY: receives WAL stream from primary
+├── startup process           ← STANDBY ONLY: replays WAL (MRP equivalent)
+└── backend process           ← one OS process per active client connection</div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Checkpointer + BGWriter Parameters</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">checkpoint_timeout</td><td class="mono">5min</td><td>Max time between checkpoints</td></tr>
+            <tr><td class="mono">max_wal_size</td><td class="mono">1GB</td><td>Forces checkpoint if WAL exceeds</td></tr>
+            <tr><td class="mono">checkpoint_completion_target</td><td class="mono">0.9</td><td>Spread I/O over 90% of interval</td></tr>
+            <tr><td class="mono">checkpoint_warning</td><td class="mono">30s</td><td>Warn if too-frequent checkpoints</td></tr>
+            <tr><td class="mono">bgwriter_delay</td><td class="mono">200ms</td><td>Sleep time between bgwriter rounds</td></tr>
+            <tr><td class="mono">bgwriter_lru_maxpages</td><td class="mono">100</td><td>Max pages written per bgwriter round</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Autovacuum Parameters</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">autovacuum</td><td class="mono">on</td><td>Master on/off switch</td></tr>
+            <tr><td class="mono">autovacuum_max_workers</td><td class="mono">3</td><td>Concurrent workers (STATIC)</td></tr>
+            <tr><td class="mono">autovacuum_naptime</td><td class="mono">1min</td><td>Sleep between launcher checks</td></tr>
+            <tr><td class="mono">autovacuum_vacuum_scale_factor</td><td class="mono">0.2</td><td>Tune to 0.01–0.05 for large tables</td></tr>
+            <tr><td class="mono">autovacuum_vacuum_cost_delay</td><td class="mono">2ms</td><td>Throttle after cost_limit hit</td></tr>
+            <tr><td class="mono">autovacuum_freeze_max_age</td><td class="mono">200M</td><td>XID age before forced freeze (STATIC)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Process Health Monitoring</div>
+<pre>-- Checkpoint health (watch buffers_backend — should be near 0)
+SELECT checkpoints_timed, checkpoints_req,
+       buffers_checkpoint, buffers_clean, buffers_backend
+FROM pg_stat_bgwriter;
+
+-- Autovacuum lag (top bloated tables)
+SELECT schemaname, relname, n_dead_tup, last_autovacuum,
+       n_dead_tup::float / NULLIF(n_live_tup,0) AS dead_ratio
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC LIMIT 10;
+
+-- XID wraparound risk check
+SELECT relname, age(relfrozenxid) AS xid_age
+FROM pg_class WHERE relkind = 'r'
+ORDER BY xid_age DESC LIMIT 10;
+-- Alert if age > 150,000,000
+
+-- WAL archiver health
+SELECT * FROM pg_stat_archiver;
+-- failed_count should be 0; last_failed_wal should be NULL</pre>
+  </div>
+</section>
+
+<!-- MUST-KNOW PARAMS -->
+<section class="section" id="must-params">
+  <div class="section-header"><span class="section-num">10</span><h2 class="section-title">Must-Know <span>Parameters</span></h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Parameter</th><th>Recommended</th><th>Why Critical</th></tr></thead>
+      <tbody>
+        <tr class="param-critical"><td>1</td><td class="mono">shared_buffers</td><td class="mono">25% RAM</td><td>Primary cache — most impactful single parameter</td></tr>
+        <tr class="param-critical"><td>2</td><td class="mono">work_mem</td><td class="mono">4–64MB</td><td>Controls sort/hash spills — multiplies per node per session</td></tr>
+        <tr class="param-critical"><td>3</td><td class="mono">max_connections</td><td class="mono">100–200</td><td>Each connection = full OS process = RAM overhead</td></tr>
+        <tr><td>4</td><td class="mono">effective_cache_size</td><td class="mono">75% RAM</td><td>Planner uses this for index vs seqscan decisions</td></tr>
+        <tr><td>5</td><td class="mono">checkpoint_completion_target</td><td class="mono">0.9</td><td>Prevents I/O spikes during checkpoint flush</td></tr>
+        <tr><td>6</td><td class="mono">max_wal_size</td><td class="mono">2–4GB</td><td>Prevents too-frequent forced checkpoints</td></tr>
+        <tr class="param-critical"><td>7</td><td class="mono">autovacuum_vacuum_scale_factor</td><td class="mono">0.01–0.05</td><td>Default 0.2 too high for large tables — causes bloat</td></tr>
+        <tr><td>8</td><td class="mono">autovacuum_max_workers</td><td class="mono">5–6</td><td>Default 3 often insufficient for busy databases</td></tr>
+        <tr><td>9</td><td class="mono">wal_level</td><td class="mono">replica</td><td>Required for replication and PITR</td></tr>
+        <tr><td>10</td><td class="mono">archive_mode</td><td class="mono">on</td><td>Required for WAL archiving and PITR</td></tr>
+        <tr><td>11</td><td class="mono">maintenance_work_mem</td><td class="mono">512MB–1GB</td><td>Speeds up VACUUM, CREATE INDEX, REINDEX</td></tr>
+        <tr><td>12</td><td class="mono">random_page_cost</td><td class="mono">1.1 (SSD)</td><td>Planner index vs sequential scan decisions</td></tr>
+        <tr><td>13</td><td class="mono">effective_io_concurrency</td><td class="mono">200 (SSD)</td><td>Async I/O prefetch for bitmap heap scans</td></tr>
+        <tr><td>14</td><td class="mono">log_min_duration_statement</td><td class="mono">1000</td><td>Catch slow queries — essential for tuning</td></tr>
+        <tr><td>15</td><td class="mono">track_io_timing</td><td class="mono">on</td><td>Enables I/O stats in pg_stat_statements</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- INSTALLATION -->
+<section class="section" id="install">
+  <div class="section-header"><span class="section-num">11</span><h2 class="section-title">Installation <span>RPM / DEB</span></h2></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">RHEL / Oracle Linux / Rocky Linux</div>
+<pre># Disable distro PostgreSQL module
+dnf -qy module disable postgresql
+
+# Add official PGDG repository
+dnf install -y https://download.postgresql.org/pub/repos/\
+yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+
+# Install server + client
+dnf install -y postgresql16-server postgresql16
+
+# Initialize data cluster
+/usr/pgsql-16/bin/postgresql-16-setup initdb
+
+# Enable and start
+systemctl enable postgresql-16
+systemctl start postgresql-16
+
+# Verify
+psql -V
+systemctl status postgresql-16</pre>
+    </div>
+    <div class="card">
+      <div class="card-title">Ubuntu / Debian</div>
+<pre># Add PGDG apt repository
+apt install -y curl ca-certificates
+install -d /usr/share/postgresql-common/pgdg
+curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+  https://www.postgresql.org/media/keys/ACCC4CF8.asc
+
+sh -c 'echo "deb [signed-by=...] \
+  https://apt.postgresql.org/pub/repos/apt \
+  $(lsb_release -cs)-pgdg main" \
+  > /etc/apt/sources.list.d/pgdg.list'
+
+# Install
+apt update &amp;&amp; apt install -y postgresql-16
+
+# Ubuntu auto-initializes — just verify
+systemctl status postgresql
+psql -V</pre>
+    </div>
+  </div>
+
+  <div id="tar-install" class="card">
+    <div class="card-title">TAR Binary Installation</div>
+<pre># Download and extract
+wget https://get.enterprisedb.com/postgresql/\
+postgresql-16.4-1-linux-x64-binaries.tar.gz
+tar -xzf postgresql-16.4-1-linux-x64-binaries.tar.gz -C /opt/
+mv /opt/pgsql /opt/pgsql-16.4
+ln -s /opt/pgsql-16.4 /opt/pgsql      # symlink — key for upgrades
+
+# Create OS user and directories
+useradd -m -s /bin/bash postgres
+mkdir -p /pgdata/16/{data,wal,archive} /pglog/16
+chown -R postgres:postgres /pgdata /pglog /opt/pgsql-16.4
+chmod 700 /pgdata/16/data
+
+# Environment (~/.bash_profile for postgres user)
+export PG_HOME=/opt/pgsql
+export PGDATA=/pgdata/16/data
+export PGPORT=5432
+export PATH=$PG_HOME/bin:$PATH
+
+# Initialize cluster with checksums
+initdb -D /pgdata/16/data -E UTF8 --locale=en_US.UTF-8 -k
+
+# Start
+pg_ctl -D /pgdata/16/data start -l /pglog/16/startup.log</pre>
+  </div>
+</section>
+
+<!-- UPGRADES -->
+<section class="section" id="upgrade">
+  <div class="section-header"><span class="section-num">13–14</span><h2 class="section-title">Minor &amp; Major <span>Upgrades</span></h2></div>
+
+  <div class="card">
+    <div class="card-title">Minor Upgrade (e.g. 16.1 → 16.4)</div>
+<pre># RPM-based — binary replace + restart (no initdb needed)
+dnf update postgresql16-server postgresql16 -y
+systemctl restart postgresql-16
+psql -c "SELECT version();"
+
+# TAR-based — update symlink, no data directory changes
+pg_ctl -D /pgdata/16/data stop -m fast
+tar -xzf postgresql-16.4-1-linux-x64-binaries.tar.gz -C /opt/
+mv /opt/pgsql /opt/pgsql-16.4
+ln -sfn /opt/pgsql-16.4 /opt/pgsql   # atomic symlink swap
+pg_ctl -D /pgdata/16/data start -l /pglog/16/startup.log
+psql -c "SELECT version();"</pre>
+  </div>
+
+  <div id="major-upgrade" class="card">
+    <div class="card-title">Major Upgrade — pg_upgrade (PG15 → PG16)</div>
+<pre># Step 1: Install PG16, initialize new cluster
+dnf install -y postgresql16-server postgresql16
+/usr/pgsql-16/bin/postgresql-16-setup initdb
+
+# Step 2: Stop old cluster
+systemctl stop postgresql-15
+
+# Step 3: Dry run — resolve ALL issues first
+/usr/pgsql-16/bin/pg_upgrade \
+  -b /usr/pgsql-15/bin  -B /usr/pgsql-16/bin \
+  -d /var/lib/pgsql/15/data \
+  -D /var/lib/pgsql/16/data \
+  --check
+
+# Step 4: Run upgrade
+/usr/pgsql-16/bin/pg_upgrade \
+  -b /usr/pgsql-15/bin  -B /usr/pgsql-16/bin \
+  -d /var/lib/pgsql/15/data \
+  -D /var/lib/pgsql/16/data \
+  --link              # hard-link = instant; omit for copy mode
+  -j 4                # parallel jobs (PG14+)
+
+# Step 5: Start new cluster + update statistics
+systemctl start postgresql-16
+./analyze_new_cluster.sh    # mandatory post-upgrade
+./delete_old_cluster.sh     # after confirming success</pre>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Downtime</th><th>Complexity</th><th>Rollback</th><th>Best For</th></tr></thead>
+      <tbody>
+        <tr><td>pg_upgrade --link</td><td><span class="badge badge-green">Minutes</span></td><td>Medium</td><td><span class="badge badge-red">Hard</span></td><td>Large DBs, same server</td></tr>
+        <tr><td>pg_upgrade (copy)</td><td><span class="badge badge-yellow">Hours</span></td><td>Medium</td><td><span class="badge badge-green">Easy</span></td><td>Medium DBs, rollback safety</td></tr>
+        <tr><td>Dump &amp; Restore</td><td><span class="badge badge-red">Hours–Days</span></td><td>Low</td><td><span class="badge badge-green">Easy</span></td><td>Small DBs, cross-server</td></tr>
+        <tr><td>Logical Replication</td><td><span class="badge badge-green">Minutes (cutover)</span></td><td>High</td><td><span class="badge badge-green">Easy</span></td><td>Zero downtime production</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- REPLICATION -->
+<section class="section" id="replication">
+  <div class="section-header"><span class="section-num">15–16</span><h2 class="section-title">Replication <span>Setup</span></h2></div>
+
+  <div class="card" id="streaming-rep">
+    <div class="card-title">Streaming Replication Architecture</div>
+    <div class="process-tree">Primary Server
+├── WAL Writer → pg_wal/ (segment files)
+└── WAL Sender process (one per standby)
+          │  TCP streaming (replication protocol)
+          ▼
+Standby Server
+├── WAL Receiver    ← receives WAL, writes to pg_wal/
+└── Startup Process ← replays WAL continuously (MRP equivalent)
+    (hot_standby=on → allows SELECT queries while in recovery)</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Primary Configuration</div>
+<pre># postgresql.conf
+wal_level = replica
+max_wal_senders = 10
+max_replication_slots = 10
+wal_keep_size = 1GB
+hot_standby = on
+hot_standby_feedback = on
+wal_log_hints = on       # required for pg_rewind
+
+# pg_hba.conf
+host replication replicator 10.0.0.0/8 scram-sha-256
+
+# Create replication user
+CREATE USER replicator REPLICATION LOGIN
+  PASSWORD 'RepStrongPass123';
+
+# Create physical replication slot
+SELECT pg_create_physical_replication_slot('standby1_slot');</pre>
+    </div>
+    <div class="card">
+      <div class="card-title">Standby Setup &amp; Monitoring</div>
+<pre># Take base backup — auto-creates standby.signal
+pg_basebackup -h 10.0.0.1 -U replicator \
+  -D /pgdata/16/data -Fp -Xs -P -R \
+  -S standby1_slot   # attach to replication slot
+
+# Start standby
+pg_ctl -D /pgdata/16/data start
+
+-- Monitor on PRIMARY
+SELECT client_addr, state, sent_lsn, replay_lsn,
+  pg_wal_lsn_diff(sent_lsn, replay_lsn) AS lag_bytes,
+  sync_state
+FROM pg_stat_replication;
+
+-- Replication lag on STANDBY (seconds)
+SELECT now() - pg_last_xact_replay_timestamp() AS lag;
+
+-- Promote standby
+SELECT pg_promote();
+-- or: pg_ctl -D /pgdata promote</pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Synchronous &amp; Cascading Replication</div>
+<pre># Synchronous replication (postgresql.conf on PRIMARY)
+synchronous_standby_names = 'FIRST 1 (standby1, standby2)'
+synchronous_commit = remote_apply  # strongest guarantee
+
+# synchronous_commit options:
+#   off          → async (fastest, risk data loss)
+#   local        → wait for local WAL flush only
+#   on           → wait for standby WAL flush
+#   remote_write → wait for standby OS write (not fsync)
+#   remote_apply → wait for standby to replay (strongest)
+
+# Delayed standby (recovery_min_apply_delay)
+recovery_min_apply_delay = '30min'  # on standby postgresql.conf
+# Useful for: accidental DROP TABLE recovery window
+
+# Cascading: Primary → Standby1 → Standby2
+# On Standby2: primary_conninfo points to Standby1
+# Standby1 must have: max_wal_senders=5, wal_level=replica</pre>
+  </div>
+
+  <div id="logical-rep" class="card">
+    <div class="card-title">Logical Replication (pub/sub) — PG10+</div>
+<pre>-- Requires: wal_level = logical (STATIC — restart needed)
+
+-- ON PUBLISHER
+CREATE PUBLICATION mypub FOR TABLE orders, customers;
+-- or replicate all tables:
+CREATE PUBLICATION mypub_all FOR ALL TABLES;
+
+-- ON SUBSCRIBER (schema must already exist — DDL not replicated)
+CREATE SUBSCRIPTION mysub
+  CONNECTION 'host=10.0.0.1 port=5432 dbname=mydb
+              user=replicator password=RepStrongPass123'
+  PUBLICATION mypub;
+
+-- Monitor sync status
+SELECT subname, pid, received_lsn, latest_end_lsn,
+       last_msg_receipt_time
+FROM pg_stat_subscription;
+
+SELECT * FROM pg_subscription_rel;
+-- srsubstate: i=init, d=data copy, s=synchronized, r=streaming</pre>
+    <div class="alert alert-warn">⚠️ Logical replication does NOT replicate DDL (ALTER TABLE, CREATE INDEX) or sequences. Schema changes must be applied manually on subscriber.</div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>Recommended</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">wal_level</td><td class="mono">replica</td><td>Minimum for streaming replication</td></tr>
+        <tr><td class="mono">max_wal_senders</td><td class="mono">10</td><td>Max WAL sender processes</td></tr>
+        <tr><td class="mono">max_replication_slots</td><td class="mono">10</td><td>Max replication slots</td></tr>
+        <tr><td class="mono">hot_standby</td><td class="mono">on</td><td>Allow read queries on standby</td></tr>
+        <tr><td class="mono">hot_standby_feedback</td><td class="mono">on</td><td>Prevent vacuum conflicts on standby</td></tr>
+        <tr><td class="mono">synchronous_standby_names</td><td class="mono">'FIRST 1 (s1)'</td><td>Sync replication targets</td></tr>
+        <tr><td class="mono">synchronous_commit</td><td class="mono">remote_apply</td><td>Strongest synchronous level</td></tr>
+        <tr><td class="mono">wal_log_hints</td><td class="mono">on</td><td>Required for pg_rewind after failover</td></tr>
+        <tr><td class="mono">recovery_min_apply_delay</td><td class="mono">0 / '30min'</td><td>Delayed standby option</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>
+<footer>
+  <p>PostgreSQL DBA Reference · Backup · Barman · Parameters · Memory Architecture · Background Processes · Installation · Upgrade · Replication · PG16 · 2026</p>
+</footer>
+</body>
+</html>

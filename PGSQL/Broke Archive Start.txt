@@ -1,0 +1,98 @@
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$ pg_ctl stop -D /backup/bkp
+waiting for server to shut down....... done
+server stopped
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$ rm -rf /backup/archivedir
+[postgres@pg-server-01 pg_wal]$ mkdir -p /backup/archivedir
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$ chown -R postgres:postgres /backup/archivedir
+[postgres@pg-server-01 pg_wal]$ chmod 700 /backup/archivedir
+[postgres@pg-server-01 pg_wal]$
+[postgres@pg-server-01 pg_wal]$ ls -ld /backup/archivedir
+drwx------ 2 postgres postgres 6 May 20 09:44 /backup/archivedir
+[postgres@pg-server-01 pg_wal]$ cd  /backup/bkp
+[postgres@pg-server-01 bkp]$ vi postgresql.conf
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ pg_ctl start -D /backup/bkp
+waiting for server to start....2026-05-20 09:47:00.010 EDT [17565] LOG:  redirecting log output to logging collector process
+2026-05-20 09:47:00.010 EDT [17565] HINT:  Future log output will appear in directory "log".
+ done
+server started
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ psql -p 5433
+psql (17.9)
+Type "help" for help.
+
+postgres=# select * from pg_stat_archiver;
+ archived_count |    last_archived_wal     |       last_archived_time        | failed_count |     last_failed_wal      |         last_failed_time         |           stats_reset
+----------------+--------------------------+---------------------------------+--------------+--------------------------+----------------------------------+----------------------------------
+             11 | 0000000500000000000000F1 | 2026-05-20 19:17:01.37545+05:30 |          650 | 0000000500000000000000E8 | 2026-05-20 19:14:26.173304+05:30 | 2026-05-20 12:48:21.043529+05:30
+(1 row)
+
+postgres=# select * from pg_stat_archiver;
+ archived_count |    last_archived_wal     |       last_archived_time        | failed_count |     last_failed_wal      |         last_failed_time         |           stats_reset
+----------------+--------------------------+---------------------------------+--------------+--------------------------+----------------------------------+----------------------------------
+             11 | 0000000500000000000000F1 | 2026-05-20 19:17:01.37545+05:30 |          650 | 0000000500000000000000E8 | 2026-05-20 19:14:26.173304+05:30 | 2026-05-20 12:48:21.043529+05:30
+(1 row)
+
+postgres=# select * from pg_stat_archiver;
+ archived_count |    last_archived_wal     |       last_archived_time        | failed_count |     last_failed_wal      |         last_failed_time         |           stats_reset
+----------------+--------------------------+---------------------------------+--------------+--------------------------+----------------------------------+----------------------------------
+             11 | 0000000500000000000000F1 | 2026-05-20 19:17:01.37545+05:30 |          650 | 0000000500000000000000E8 | 2026-05-20 19:14:26.173304+05:30 | 2026-05-20 12:48:21.043529+05:30
+(1 row)
+
+postgres=# select pg_switch_wal();
+ pg_switch_wal
+---------------
+ 0/F20000F0
+(1 row)
+
+postgres=# select * from pg_stat_archiver;
+ archived_count |    last_archived_wal     |        last_archived_time        | failed_count |     last_failed_wal      |         last_failed_time         |           stats_reset
+
+----------------+--------------------------+----------------------------------+--------------+--------------------------+----------------------------------+---------------------------------
+-
+             12 | 0000000500000000000000F2 | 2026-05-20 19:17:42.990082+05:30 |          650 | 0000000500000000000000E8 | 2026-05-20 19:14:26.173304+05:30 | 2026-05-20 12:48:21.043529+05:30
+(1 row)
+
+postgres=# select pg_stat_reset_shared('archiver');
+ pg_stat_reset_shared
+----------------------
+
+(1 row)
+
+postgres=# select * from pg_stat_archiver;
+ archived_count | last_archived_wal | last_archived_time | failed_count | last_failed_wal | last_failed_time |           stats_reset
+----------------+-------------------+--------------------+--------------+-----------------+------------------+----------------------------------
+              0 |                   |                    |            0 |                 |                  | 2026-05-20 19:17:59.542542+05:30
+(1 row)
+
+postgres=# select pg_switch_wal();
+ pg_switch_wal
+---------------
+ 0/F3000078
+(1 row)
+
+postgres=# select * from pg_stat_archiver;
+ archived_count |    last_archived_wal     |        last_archived_time        | failed_count | last_failed_wal | last_failed_time |           stats_reset
+----------------+--------------------------+----------------------------------+--------------+-----------------+------------------+----------------------------------
+              1 | 0000000500000000000000F3 | 2026-05-20 19:18:09.934467+05:30 |            0 |                 |                  | 2026-05-20 19:17:59.542542+05:30
+(1 row)
+
+postgres=# \q
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ cat postgresql.conf | grep archive_
+archive_mode = on               # enables archiving; off, on, or always
+#archive_library = ''           # library to use to archive a WAL file
+                                # (empty string indicates archive_command should
+#archive_command = 'test ! -f /backup/archivedir/%f && cp %p /backup/archivedir/%f'             # command to use to archive a WAL file
+archive_command = 'test ! -f "/backup/archivedir/%f" && cp "%p" "/backup/archivedir/%f"'
+archive_timeout = 60            # force a WAL file switch after this
+#archive_cleanup_command = ''   # command to execute at every restartpoint
+#max_standby_archive_delay = 30s        # max delay before canceling queries
+[postgres@pg-server-01 bkp]$

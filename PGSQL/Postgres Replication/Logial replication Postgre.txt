@@ -1,0 +1,91 @@
+== Paramater on primary/Publisher -- need pg_ctl reload or restart
+listen_addresses='*'
+port=5432
+wal_level=logical
+max_wal_senders=10
+max_replication_slots=10
+max_worker_processes=20 -- as per CPU core
+max_logical_replication_workers=10
+max_sync_workers_per_subscription=5
+==
+
+
+== add entry $PGDATA/pg_hba.conf -- need pg_ctl reload or restart
+host    replication     repluser        192.168.56.102/32       scram-sha-256
+host    all             repluser        192.168.56.102/32       scram-sha-256
+==
+
+== Create user
+CREATE ROLE repluser WITH REPLICATION LOGIN PASSWORD 'StrongPass';
+==
+
+
+--> Publisher
+CREATE DATABASE salesdb;
+
+\c salesdb
+
+CREATE TABLE customers(
+ id int PRIMARY KEY,
+ name text,
+ city text
+);
+
+INSERT INTO customers VALUES
+(1,'Suyash','Nashik'),
+(2,'Rahul','Pune');
+
+CREATE PUBLICATION pub_sales FOR TABLE customers;
+
+
+grant all on customers to repluser ;
+grant all on salesdb to repluser ;
+
+
+
+--> Subscriber
+CREATE DATABASE salesdb;
+
+\c salesdb
+ 
+CREATE TABLE customers(
+ id int PRIMARY KEY,
+ name text,
+ city text
+);
+
+CREATE SUBSCRIPTION sub_sales
+CONNECTION 'host=192.168.56.101 port=5432 dbname=salesdb user=repluser password=123'
+PUBLICATION pub_sales;
+
+
+** Remove Replication
+--> Subscriber
+DROP SUBSCRIPTION sub_sales;
+
+--> Publisher
+DROP PUBLICATION pub_sales;
+
+
+** verify
+--> Publisher
+ \c salesdb
+select * from pg_publication;
+select * from pg_replication_slots;
+
+--> Subscriber
+ \c salesdb
+select * from pg_subscription;
+select * from pg_stat_subscription;
+
+
+
+### Important Notes
+Primary Key Needed
+If no PK:
+ALTER TABLE customers REPLICA IDENTITY FULL;
+
+DDL Is NOT Replicated
+This does not auto replicate:
+ALTER TABLE customers ADD COLUMN email text;
+Run manually on both servers.

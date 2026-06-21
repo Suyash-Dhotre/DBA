@@ -1,0 +1,366 @@
+docker@docker-VirtualBox:~$ docker images
+REPOSITORY    TAG       IMAGE ID       CREATED        SIZE
+postgres      latest    f49abb9855df   6 months ago   438MB
+hello-world   latest    d2c94e258dcb   2 years ago    13.3kB
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker run -d --name my-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=pass -e PSOTGRES_DB=postgres -p 5432:5432 f49abb9855df
+1a8e40f6bac57690bbbbd5a7a86181ef4cc9b276fdaa3cfb11adbcccd6ca490a
+
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker ps
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+1a8e40f6bac5   f49abb9855df   "docker-entrypoint.s…"   17 seconds ago   Up 14 seconds   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   my-postgres
+docker@docker-VirtualBox:~$
+
+
+
+---> explaination 
+
+docker run -d \
+  --name my-postgres \
+  -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=admin123 \
+  -e POSTGRES_DB=learnpg \
+  -p 5432:5432 \
+  postgres:17
+
+1. docker run : Tells Docker to create and run a new container.
+2. -d : Runs the container in detached mode (background).
+3. --name my-postgres : Assigns a custom name my-postgres to the container.
+4. -e POSTGRES_USER=postgres : Environment variable to create a superuser inside PostgreSQL named admin. By default, if not set → the user would be postgres.
+5. -e POSTGRES_PASSWORD=**** : Sets the password for the POSTGRES_USER (postgres). Mandatory: PostgreSQL won’t start without a password.
+6. -e POSTGRES_DB=postgres: Creates a database named postgres automatically at startup. By default, only a database named after the user is created.
+7. -p 5432:5432 : Port mapping → host:container. Exposes PostgreSQL’s default port 5432 to your local machine. You can connect using localhost:5432.
+8. postgres:17 (f49abb9855df) :Image name + tag. postgres → official PostgreSQL image. :17 → version (latest stable release).
+
+
+
+---> check container logs:
+
+docker@docker-VirtualBox:~$ docker logs my-postgres
+The files belonging to this database system will be owned by user "postgres".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "en_US.utf8".
+The default database encoding has accordingly been set to "UTF8".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+fixing permissions on existing directory /var/lib/postgresql/data ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default "max_connections" ... 100
+selecting default "shared_buffers" ... 128MB
+selecting default time zone ... Etc/UTC
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+initdb: warning: enabling "trust" authentication for local connections
+initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+
+Success. You can now start the database server using:
+
+    pg_ctl -D /var/lib/postgresql/data -l logfile start
+
+waiting for server to start....2025-08-31 15:54:40.257 UTC [46] LOG:  starting PostgreSQL 17.4 (Debian 17.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+2025-08-31 15:54:40.268 UTC [46] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2025-08-31 15:54:40.308 UTC [49] LOG:  database system was shut down at 2025-08-31 15:54:37 UTC
+2025-08-31 15:54:40.330 UTC [46] LOG:  database system is ready to accept connections
+ done
+server started
+
+/usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+
+waiting for server to shut down...2025-08-31 15:54:40.845 UTC [46] LOG:  received fast shutdown request
+.2025-08-31 15:54:40.857 UTC [46] LOG:  aborting any active transactions
+2025-08-31 15:54:40.862 UTC [46] LOG:  background worker "logical replication launcher" (PID 52) exited with exit code 1
+2025-08-31 15:54:40.870 UTC [47] LOG:  shutting down
+2025-08-31 15:54:40.885 UTC [47] LOG:  checkpoint starting: shutdown immediate
+2025-08-31 15:54:40.941 UTC [47] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.016 s, sync=0.009 s, total=0.070 s; sync files=2, longest=0.005 s, average=0.005 s; distance=0 kB, estimate=0 kB; lsn=0/14E4FA0, redo lsn=0/14E4FA0
+2025-08-31 15:54:40.951 UTC [46] LOG:  database system is shut down
+ done
+server stopped
+
+PostgreSQL init process complete; ready for start up.
+
+2025-08-31 15:54:41.078 UTC [1] LOG:  starting PostgreSQL 17.4 (Debian 17.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+2025-08-31 15:54:41.085 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2025-08-31 15:54:41.085 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2025-08-31 15:54:41.101 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2025-08-31 15:54:41.125 UTC [60] LOG:  database system was shut down at 2025-08-31 15:54:40 UTC
+2025-08-31 15:54:41.144 UTC [1] LOG:  database system is ready to accept connections
+2025-08-31 15:59:41.225 UTC [58] LOG:  checkpoint starting: time
+2025-08-31 15:59:44.772 UTC [58] LOG:  checkpoint complete: wrote 37 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=3.485 s, sync=0.030 s, total=3.547 s; sync files=10, longest=0.014 s, average=0.003 s; distance=193 kB, estimate=193 kB; lsn=0/1515768, redo lsn=0/1515710
+docker@docker-VirtualBox:~$
+
+
+
+--> Connecting Db with multiple ways
+
+docker@docker-VirtualBox:~$ docker ps
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+1a8e40f6bac5   f49abb9855df   "docker-entrypoint.s…"   9 minutes ago   Up 9 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   my-postgres
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker exec -it my-postgres bash
+root@1a8e40f6bac5:/#
+root@1a8e40f6bac5:/# hostname
+1a8e40f6bac5
+root@1a8e40f6bac5:/#
+root@1a8e40f6bac5:/# hostname -i
+172.17.0.2
+root@1a8e40f6bac5:/# psql -v
+/usr/lib/postgresql/17/bin/psql: option requires an argument -- 'v'
+psql: hint: Try "psql --help" for more information.
+root@1a8e40f6bac5:/# ls
+bin  boot  dev  docker-entrypoint-initdb.d  etc  home  lib  lib64  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
+root@1a8e40f6bac5:/#
+root@1a8e40f6bac5:/#
+root@1a8e40f6bac5:/# ls -ltr
+total 56
+drwxr-xr-x   2 root root 4096 Mar  7 17:30 home
+drwxr-xr-x   2 root root 4096 Mar  7 17:30 boot
+drwxr-xr-x   1 root root 4096 Apr  7 00:00 var
+drwxr-xr-x   1 root root 4096 Apr  7 00:00 usr
+drwxrwxrwt   2 root root 4096 Apr  7 00:00 tmp
+drwxr-xr-x   2 root root 4096 Apr  7 00:00 srv
+lrwxrwxrwx   1 root root    8 Apr  7 00:00 sbin -> usr/sbin
+drwxr-xr-x   2 root root 4096 Apr  7 00:00 opt
+drwxr-xr-x   2 root root 4096 Apr  7 00:00 mnt
+drwxr-xr-x   2 root root 4096 Apr  7 00:00 media
+lrwxrwxrwx   1 root root    9 Apr  7 00:00 lib64 -> usr/lib64
+lrwxrwxrwx   1 root root    7 Apr  7 00:00 lib -> usr/lib
+lrwxrwxrwx   1 root root    7 Apr  7 00:00 bin -> usr/bin
+drwxr-xr-x   2 root root 4096 Apr  8 01:20 docker-entrypoint-initdb.d
+drwxr-xr-x   1 root root 4096 Apr  8 01:20 run
+drwxr-xr-x   1 root root 4096 Aug 31 15:54 etc
+dr-xr-xr-x  13 root root    0 Aug 31 15:54 sys
+dr-xr-xr-x 270 root root    0 Aug 31 15:54 proc
+drwxr-xr-x   5 root root  340 Aug 31 15:54 dev
+drwx------   1 root root 4096 Aug 31 16:04 root
+root@1a8e40f6bac5:/#
+root@1a8e40f6bac5:/# psql -U postgres
+psql (17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=#
+postgres=# \conninfo
+You are connected to database "postgres" as user "postgres" via socket in "/var/run/postgresql" at port "5432".
+postgres=#
+postgres=#
+postgres=# create database galactus;
+CREATE DATABASE
+postgres=#
+postgres=# \l
+                                                    List of databases
+   Name    |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ galactus  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(4 rows)
+
+postgres=#
+postgres=# exit
+root@1a8e40f6bac5:/# exit
+exit
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker exec -it my-postgres psql -U postgres
+psql (17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=#
+postgres=# \l
+                                                    List of databases
+   Name    |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ galactus  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(4 rows)
+
+postgres=# exit
+docker@docker-VirtualBox:~$
+
+
+
+---> Instal postgres on  local machin (VM)
+
+-Steps to install postgresql-client-17 on Ubuntu (VirtualBox VM):
+-Add PostgreSQL APT repository (for Ubuntu 24.04 “noble”)
+Run this (it will create the repo file):
+
+echo "deb http://apt.postgresql.org/pub/repos/apt noble-pgdg main" | \
+sudo tee /etc/apt/sources.list.d/pgdg.list
+
+-Add PostgreSQL GPG key (modern way)
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
+sudo tee /etc/apt/trusted.gpg.d/postgresql.gpg > /dev/null
+
+Update package list
+sudo apt-get update
+sudo apt-get install -y postgresql-client-17
+psql --version
+
+
+docker@docker-VirtualBox:~$ psql --version
+psql (PostgreSQL) 17.6 (Ubuntu 17.6-1.pgdg24.04+1)
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ psql -h localhost -U postgres -p 5432 -d postgres
+Password for user postgres:
+psql (17.6 (Ubuntu 17.6-1.pgdg24.04+1), server 17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=# \l
+                                                    List of databases
+   Name    |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ galactus  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(4 rows)
+
+postgres=#
+postgres=# \conninfo
+You are connected to database "postgres" as user "postgres" on host "localhost" (address "127.0.0.1") at port "5432".
+postgres=#
+
+
+
+--> Docker with volume consistency;
+
+docker@docker-VirtualBox:~$ docker volume create --driver local --opt type=none --opt device=/home/docker/my-postgres-vol --opt o=bind my-psql-co-volume
+my-psql-co-volume
+docker@docker-VirtualBox:~$ docker volume ls
+DRIVER    VOLUME NAME
+local     my-psql-co-volume
+docker@docker-VirtualBox:~$ ls -ltra my-postgres-vol/
+ls: cannot open directory 'my-postgres-vol/': Permission denied
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ pwd
+/home/docker
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker images
+REPOSITORY    TAG       IMAGE ID       CREATED        SIZE
+postgres      latest    f49abb9855df   6 months ago   438MB
+hello-world   latest    d2c94e258dcb   2 years ago    13.3kB
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker run -d --name my-psql-co-vol -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=postgres -p 5432:5432 -v my-psql-co-volume:/var/lib/postgresql/data f49abb9855df
+344d0ed231852b9ffb2c2c9aad5f21127a092d6ac90ad1db034f66d47f92cc5d
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker volume ls
+DRIVER    VOLUME NAME
+local     my-psql-co-volume
+docker@docker-VirtualBox:~$ docker ps -a
+CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS          PORTS                                       NAMES
+344d0ed23185   f49abb9855df   "docker-entrypoint.s…"   18 seconds ago   Up 17 seconds   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   my-psql-co-vol
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker exec -it 344d0ed23185 bash
+root@344d0ed23185:/#
+root@344d0ed23185:/# pwd
+/
+root@344d0ed23185:/# cd /var/lib/postgresql/data
+root@344d0ed23185:/var/lib/postgresql/data# ls
+base    pg_commit_ts  pg_hba.conf    pg_logical    pg_notify    pg_serial     pg_stat      pg_subtrans  pg_twophase  pg_wal   postgresql.auto.conf  postmaster.opts
+global  pg_dynshmem   pg_ident.conf  pg_multixact  pg_replslot  pg_snapshots  pg_stat_tmp  pg_tblspc    PG_VERSION   pg_xact  postgresql.conf       postmaster.pid
+root@344d0ed23185:/var/lib/postgresql/data#
+root@344d0ed23185:/var/lib/postgresql/data# psql -U postgres
+psql (17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=# show data_directory;
+      data_directory
+--------------------------
+ /var/lib/postgresql/data
+(1 row)
+
+postgres=# exit
+root@344d0ed23185:/var/lib/postgresql/data# pwd
+/var/lib/postgresql/data
+root@344d0ed23185:/var/lib/postgresql/data# exit
+exit
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ pwd
+/home/docker
+docker@docker-VirtualBox:~$ psql -h localhost -U postgres
+Password for user postgres:
+psql (17.6 (Ubuntu 17.6-1.pgdg24.04+1), server 17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=#
+postgres=# \l
+                                                    List of databases
+   Name    |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+-----------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ postgres  | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1 | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+           |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(3 rows)
+
+postgres=#
+postgres=# create database galactus_vol
+postgres-# ;
+CREATE DATABASE
+postgres=# \l
+                                                      List of databases
+     Name     |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+--------------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ galactus_vol | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ postgres     | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0    | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+              |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1    | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+              |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(4 rows)
+
+postgres=# exit
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker ps -a
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                       NAMES
+344d0ed23185   f49abb9855df   "docker-entrypoint.s…"   6 minutes ago   Up 6 minutes   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   my-psql-co-vol
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker container stop my-psql-co-vol
+my-psql-co-vol
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker ps -a
+CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS                     PORTS     NAMES
+344d0ed23185   f49abb9855df   "docker-entrypoint.s…"   7 minutes ago   Exited (0) 3 seconds ago             my-psql-co-vol
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker container start my-psql-co-vol
+my-psql-co-vol
+docker@docker-VirtualBox:~$
+docker@docker-VirtualBox:~$ docker exec -it my-psql-co-vol psql -U postgres
+psql (17.4 (Debian 17.4-1.pgdg120+2))
+Type "help" for help.
+
+postgres=# \l
+                                                      List of databases
+     Name     |  Owner   | Encoding | Locale Provider |  Collate   |   Ctype    | Locale | ICU Rules |   Access privileges
+--------------+----------+----------+-----------------+------------+------------+--------+-----------+-----------------------
+ galactus_vol | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ postgres     | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           |
+ template0    | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+              |          |          |                 |            |            |        |           | postgres=CTc/postgres
+ template1    | postgres | UTF8     | libc            | en_US.utf8 | en_US.utf8 |        |           | =c/postgres          +
+              |          |          |                 |            |            |        |           | postgres=CTc/postgres
+(4 rows)
+
+postgres=# exit
+docker@docker-VirtualBox:~$

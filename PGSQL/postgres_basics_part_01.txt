@@ -1,0 +1,1658 @@
+
+\l -- list databases
+\dn -- list schema
+\dt <schema>.* -- list all tables in schema
+
+==> current date function
+
+postgres=# select now();
+              now
+-------------------------------
+ 2025-09-04 13:08:18.872509+00
+(1 row)
+
+
+
+==> lmit and offset
+
+galactus_vol=# select * from gal;
+ i
+----
+  1
+  2
+  3
+  4
+  5
+  6
+  7
+  8
+  9
+ 10
+(10 rows)
+
+galactus_vol=#
+galactus_vol=# select * from gal limit 5
+galactus_vol-# ;
+ i
+---
+ 1
+ 2
+ 3
+ 4
+ 5
+(5 rows)
+
+galactus_vol=# select * from gal limit 5 offset 3
+galactus_vol-# ;
+ i
+---
+ 4
+ 5
+ 6
+ 7
+ 8
+(5 rows)
+
+
+
+==> Fetch
+
+galactus_vol=# select * from gal offset 3  fetch first 2 rows only;
+ i
+---
+ 4
+ 5
+(2 rows)
+
+galactus_vol=# select * from gal offset 3  fetch next 2 rows only;
+ i
+---
+ 4
+ 5
+(2 rows)
+
+galactus_vol=# select * from gal offset 3  fetch next 4 rows only;
+ i
+---
+ 4
+ 5
+ 6
+ 7
+(4 rows)
+
+galactus_vol=# select * from gal offset 3  fetch next 4 row only;
+ i
+---
+ 4
+ 5
+ 6
+ 7
+(4 rows)
+
+galactus_vol=# select * from gal fetch first 2 rows only;
+ i
+---
+ 1
+ 2
+(2 rows)
+
+
+
+==> JOINS
+
+CREATE TABLE basket_a (
+    a INT PRIMARY KEY,
+    fruit_a VARCHAR (100) NOT NULL
+);
+CREATE TABLE basket_b (
+    b INT PRIMARY KEY,
+    fruit_b VARCHAR (100) NOT NULL
+);
+INSERT INTO basket_a (a, fruit_a)
+VALUES
+    (1, 'Apple'),
+    (2, 'Orange'),
+    (3, 'Banana'),
+    (4, 'Cucumber');
+INSERT INTO basket_b (b, fruit_b)
+VALUES
+    (1, 'Orange'),
+    (2, 'Apple'),
+    (3, 'Watermelon'),
+    (4, 'Pear');
+
+
+-->Innner join
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b 
+FROM    basket_a INNER JOIN basket_b ON fruit_a = fruit_b;
+ a | fruit_a | b | fruit_b
+---+---------+---+---------
+ 1 | Apple   | 2 | Apple
+ 2 | Orange  | 1 | Orange
+(2 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a  JOIN basket_b ON fruit_a = fruit_b;
+ a | fruit_a | b | fruit_b
+---+---------+---+---------
+ 1 | Apple   | 2 | Apple
+ 2 | Orange  | 1 | Orange
+(2 rows)
+
+galactus_vol=# insert into basket_a(a,fruit_a) values (5,'Apple'),(6,'apple');
+INSERT 0 2
+galactus_vol=#
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a INNER JOIN basket_b ON fruit_a = fruit_b;
+ a | fruit_a | b | fruit_b
+---+---------+---+---------
+ 1 | Apple   | 2 | Apple
+ 2 | Orange  | 1 | Orange
+ 5 | Apple   | 2 | Apple
+(3 rows)
+
+galactus_vol=#
+
+
+--> Left join
+
+galactus_vol=# SELECT     a,    fruit_a,    b,    fruit_b
+FROM    basket_a LEFT JOIN basket_b   ON fruit_a = fruit_b;
+ a | fruit_a  | b | fruit_b
+---+----------+---+---------
+ 1 | Apple    | 2 | Apple
+ 2 | Orange   | 1 | Orange
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+(4 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a LEFT JOIN basket_b    ON fruit_a = fruit_b WHERE b IS NULL;
+ a | fruit_a  | b | fruit_b
+---+----------+---+---------
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+(2 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a LEFT JOIN basket_b    ON fruit_a = fruit_b WHERE b IS NOT NULL;
+ a | fruit_a | b | fruit_b
+---+---------+---+---------
+ 1 | Apple   | 2 | Apple
+ 2 | Orange  | 1 | Orange
+(2 rows)
+
+galactus_vol=# insert into basket_a(a,fruit_a) values (5,'Apple'),(6,'apple');
+INSERT 0 2
+galactus_vol=# SELECT     a,    fruit_a,    b,    fruit_b
+FROM    basket_a LEFT JOIN basket_b   ON fruit_a = fruit_b;
+ a | fruit_a  | b | fruit_b
+---+----------+---+---------
+ 1 | Apple    | 2 | Apple
+ 2 | Orange   | 1 | Orange
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+ 5 | Apple    | 2 | Apple
+ 6 | apple    |   |
+(6 rows)
+
+
+
+--> Right join
+
+galactus_vol=# SELECT     a,    fruit_a,    b,    fruit_b
+FROM    basket_a RIGHT JOIN basket_b ON fruit_a = fruit_b;
+ a | fruit_a | b |  fruit_b
+---+---------+---+------------
+ 2 | Orange  | 1 | Orange
+ 1 | Apple   | 2 | Apple
+   |         | 3 | Watermelon
+   |         | 4 | Pear
+(4 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a RIGHT JOIN basket_b   ON fruit_a = fruit_b WHERE a IS NULL;
+ a | fruit_a | b |  fruit_b
+---+---------+---+------------
+   |         | 3 | Watermelon
+   |         | 4 | Pear
+(2 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a RIGHT JOIN basket_b   ON fruit_a = fruit_b WHERE a IS not NULL;
+ a | fruit_a | b | fruit_b
+---+---------+---+---------
+ 1 | Apple   | 2 | Apple
+ 2 | Orange  | 1 | Orange
+(2 rows)
+
+galactus_vol=# insert into basket_a(a,fruit_a) values (5,'Apple'),(6,'apple');
+INSERT 0 2
+galactus_vol=# SELECT     a,    fruit_a,    b,    fruit_b
+FROM    basket_a RIGHT JOIN basket_b ON fruit_a = fruit_b;
+ a | fruit_a | b |  fruit_b
+---+---------+---+------------
+ 2 | Orange  | 1 | Orange
+ 5 | Apple   | 2 | Apple
+ 1 | Apple   | 2 | Apple
+   |         | 3 | Watermelon
+   |         | 4 | Pear
+
+
+--> Full Outer join
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a FULL OUTER JOIN basket_b    ON fruit_a = fruit_b;
+ a | fruit_a  | b |  fruit_b
+---+----------+---+------------
+ 1 | Apple    | 2 | Apple
+ 2 | Orange   | 1 | Orange
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+   |          | 3 | Watermelon
+   |          | 4 | Pear
+(6 rows)
+
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a FULL JOIN basket_b   ON fruit_a = fruit_b WHERE a IS NULL OR b IS NULL;
+ a | fruit_a  | b |  fruit_b
+---+----------+---+------------
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+   |          | 3 | Watermelon
+   |          | 4 | Pear
+(4 rows)
+
+galactus_vol=# insert into basket_a(a,fruit_a) values (5,'Apple'),(6,'apple');
+INSERT 0 2
+galactus_vol=# SELECT    a,    fruit_a,    b,    fruit_b
+FROM    basket_a FULL OUTER JOIN basket_b    ON fruit_a = fruit_b;
+ a | fruit_a  | b |  fruit_b
+---+----------+---+------------
+ 1 | Apple    | 2 | Apple
+ 2 | Orange   | 1 | Orange
+ 3 | Banana   |   |
+ 4 | Cucumber |   |
+ 5 | Apple    | 2 | Apple
+ 6 | apple    |   |
+   |          | 3 | Watermelon
+   |          | 4 | Pear
+
+
+
+--> Self join
+
+galactus_vol=# select a.a , a.fruit_a , b.a, b.fruit_a from basket_a a inner join basket_a b on a.fruit_a = b.fruit_a;
+ a | fruit_a  | a | fruit_a
+---+----------+---+----------
+ 1 | Apple    | 5 | Apple
+ 1 | Apple    | 1 | Apple
+ 2 | Orange   | 2 | Orange
+ 3 | Banana   | 3 | Banana
+ 4 | Cucumber | 4 | Cucumber
+ 5 | Apple    | 5 | Apple
+ 5 | Apple    | 1 | Apple
+ 6 | apple    | 6 | apple
+(8 rows)
+
+galactus_vol=# select a.a , a.fruit_a , b.a, b.fruit_a from basket_a a inner join basket_a b on a.fruit_a <> b.fruit_a;
+ a | fruit_a  | a | fruit_a
+---+----------+---+----------
+ 1 | Apple    | 2 | Orange
+ 1 | Apple    | 3 | Banana
+ 1 | Apple    | 4 | Cucumber
+ 1 | Apple    | 6 | apple
+ 2 | Orange   | 1 | Apple
+ 2 | Orange   | 3 | Banana
+ 2 | Orange   | 4 | Cucumber
+ 2 | Orange   | 5 | Apple
+ 2 | Orange   | 6 | apple
+ 3 | Banana   | 1 | Apple
+ 3 | Banana   | 2 | Orange
+ 3 | Banana   | 4 | Cucumber
+ 3 | Banana   | 5 | Apple
+ 3 | Banana   | 6 | apple
+ 4 | Cucumber | 1 | Apple
+ 4 | Cucumber | 2 | Orange
+ 4 | Cucumber | 3 | Banana
+ 4 | Cucumber | 5 | Apple
+ 4 | Cucumber | 6 | apple
+ 5 | Apple    | 2 | Orange
+ 5 | Apple    | 3 | Banana
+ 5 | Apple    | 4 | Cucumber
+ 5 | Apple    | 6 | apple
+ 6 | apple    | 1 | Apple
+ 6 | apple    | 2 | Orange
+ 6 | apple    | 3 | Banana
+ 6 | apple    | 4 | Cucumber
+ 6 | apple    | 5 | Apple
+(28 rows)
+
+galactus_vol=#
+galactus_vol=# \d+ employee
+                                                   Table "public.employee"
+   Column    |          Type          | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
+-------------+------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+ employee_id | integer                |           | not null |         | plain    |             |              |
+ first_name  | character varying(255) |           | not null |         | extended |             |              |
+ last_name   | character varying(255) |           | not null |         | extended |             |              |
+ manager_id  | integer                |           |          |         | plain    |             |              |
+Indexes:
+    "employee_pkey" PRIMARY KEY, btree (employee_id)
+Foreign-key constraints:
+    "employee_manager_id_fkey" FOREIGN KEY (manager_id) REFERENCES employee(employee_id) ON DELETE CASCADE
+Referenced by:
+    TABLE "employee" CONSTRAINT "employee_manager_id_fkey" FOREIGN KEY (manager_id) REFERENCES employee(employee_id) ON DELETE CASCADE
+Access method: heap
+
+galactus_vol=#
+galactus_vol=#
+galactus_vol=#
+galactus_vol=# SELECT * FROM employee;
+ employee_id | first_name |  last_name  | manager_id
+-------------+------------+-------------+------------
+           1 | Windy      | Hays        |
+           2 | Ava        | Christensen |          1
+           3 | Hassan     | Conner      |          1
+           4 | Anna       | Reeves      |          2
+           5 | Sau        | Norman      |          2
+           6 | Kelsie     | Hays        |          3
+           7 | Tory       | Goff        |          3
+           8 | Salley     | Lester      |          3
+(8 rows)
+
+galactus_vol=#
+galactus_vol=# SELECT  e.first_name || ' ' || e.last_name employee,  m.first_name || ' ' || m.last_name manager
+FROM  employee e  INNER JOIN employee m ON m.employee_id = e.manager_id ORDER BY  manager;
+    employee     |     manager
+-----------------+-----------------
+ Sau Norman      | Ava Christensen
+ Anna Reeves     | Ava Christensen
+ Salley Lester   | Hassan Conner
+ Kelsie Hays     | Hassan Conner
+ Tory Goff       | Hassan Conner
+ Ava Christensen | Windy Hays
+ Hassan Conner   | Windy Hays
+(7 rows)
+
+galactus_vol=# SELECT  e.first_name || ' ' || e.last_name employee,  m.first_name || ' ' || m.last_name manager
+FROM  employee e  LEFT JOIN employee m ON m.employee_id = e.manager_id ORDER BY  manager;
+    employee     |     manager
+-----------------+-----------------
+ Anna Reeves     | Ava Christensen
+ Sau Norman      | Ava Christensen
+ Salley Lester   | Hassan Conner
+ Kelsie Hays     | Hassan Conner
+ Tory Goff       | Hassan Conner
+ Hassan Conner   | Windy Hays
+ Ava Christensen | Windy Hays
+ Windy Hays      |
+(8 rows)
+
+galactus_vol=#
+
+
+
+
+-->> more e.g
+
+galactus_vol=# CREATE TABLE employee (
+  employee_id INT PRIMARY KEY,
+  first_name VARCHAR (255) NOT NULL,
+  last_name VARCHAR (255) NOT NULL,
+  manager_id INT,
+  FOREIGN KEY (manager_id) REFERENCES employee (employee_id) ON DELETE CASCADE
+);
+
+INSERT INTO employee (employee_id, first_name, last_name, manager_id)
+VALUES
+  (1, 'Windy', 'Hays', NULL),
+  (2, 'Ava', 'Christensen', 1),
+  (3, 'Hassan', 'Conner', 1),
+  (4, 'Anna', 'Reeves', 2),
+  (5, 'Sau', 'Norman', 2),
+  (6, 'Kelsie', 'Hays', 3),
+  (7, 'Tory', 'Goff', 3),
+  (8, 'Salley', 'Lester', 3);
+
+SELECT * FROM employee;
+
+CREATE TABLE
+INSERT 0 8
+ employee_id | first_name |  last_name  | manager_id
+-------------+------------+-------------+------------
+           1 | Windy      | Hays        |
+           2 | Ava        | Christensen |          1
+           3 | Hassan     | Conner      |          1
+           4 | Anna       | Reeves      |          2
+           5 | Sau        | Norman      |          2
+           6 | Kelsie     | Hays        |          3
+           7 | Tory       | Goff        |          3
+           8 | Salley     | Lester      |          3
+(8 rows)
+
+galactus_vol=#
+galactus_vol=# SELECT
+  e.first_name || ' ' || e.last_name employee,
+  m.first_name || ' ' || m.last_name manager
+FROM
+  employee e
+  INNER JOIN employee m ON m.employee_id = e.manager_id
+ORDER BY
+  manager;
+    employee     |     manager
+-----------------+-----------------
+ Sau Norman      | Ava Christensen
+ Anna Reeves     | Ava Christensen
+ Salley Lester   | Hassan Conner
+ Kelsie Hays     | Hassan Conner
+ Tory Goff       | Hassan Conner
+ Ava Christensen | Windy Hays
+ Hassan Conner   | Windy Hays
+(7 rows)
+
+galactus_vol=# SELECT
+  e.first_name || ' ' || e.last_name employee,
+  m.first_name || ' ' || m.last_name manager
+FROM
+  employee e
+  LEFT JOIN employee m ON m.employee_id = e.manager_id
+ORDER BY
+  manager;
+    employee     |     manager
+-----------------+-----------------
+ Anna Reeves     | Ava Christensen
+ Sau Norman      | Ava Christensen
+ Salley Lester   | Hassan Conner
+ Kelsie Hays     | Hassan Conner
+ Tory Goff       | Hassan Conner
+ Hassan Conner   | Windy Hays
+ Ava Christensen | Windy Hays
+ Windy Hays      |
+(8 rows)
+
+galactus_vol=# 
+<<--
+
+
+-->> More e.g with Using() 
+
+SELECT
+  c.customer_id,
+  c.first_name,
+  c.last_name,
+  p.amount,
+  p.payment_date
+FROM
+  customer c
+  INNER JOIN payment p ON p.customer_id = c.customer_id
+ORDER BY
+  p.payment_date;
+
+SELECT
+  customer_id,
+  first_name,
+  last_name,
+  amount,
+  payment_date
+FROM
+  customer
+  INNER JOIN payment USING(customer_id)
+ORDER BY
+  payment_date;
+
+SELECT
+  c.customer_id,
+  c.first_name || ' ' || c.last_name customer_name,
+  s.first_name || ' ' || s.last_name staff_name,
+  p.amount,
+  p.payment_date
+FROM
+  customer c
+  INNER JOIN payment p USING(customer_id)
+  INNER JOIN staff s USING(staff_id)
+ORDER BY
+  payment_date;
+
+customer_id |     customer_name     |  staff_name  | amount |        payment_date
+-------------+-----------------------+--------------+--------+----------------------------
+         416 | Jeffery Pinson        | Jon Stephens |   2.99 | 2007-02-14 21:21:59.996577
+         516 | Elmer Noe             | Jon Stephens |   4.99 | 2007-02-14 21:23:39.996577
+         239 | Minnie Romero         | Mike Hillyer |   4.99 | 2007-02-14 21:29:00.996577
+         592 | Terrance Roush        | Jon Stephens |   6.99 | 2007-02-14 21:41:12.996577
+          49 | Joyce Edwards         | Mike Hillyer |   0.99 | 2007-02-14 21:44:52.996577
+
+--
+SELECT
+  f1.title,
+  f2.title,
+  f1.length
+FROM
+  film f1
+  INNER JOIN film f2 ON f1.film_id > f2.film_id
+  AND f1.length = f2.length;
+
+title           |            title            | length
+---------------------------+-----------------------------+--------
+ Chamber Italian           | Affair Prejudice            |    117
+ Grosse Wonderful          | Doors President             |     49
+ Bright Encounters         | Bedazzled Married           |     73
+ Date Speed                | Crow Grease                 |    104
+ Annie Identity            | Academy Dinosaur            |     86
+ Anything Savannah         | Alone Trip                  |     82
+ Apache Divine             | Anaconda Confessions        |     92
+ Arabia Dogma              | Airplane Sierra             |     62
+ Dying Maker               | Antitrust Tomatoes          |    168
+
+
+--
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  film f
+  LEFT JOIN inventory i ON i.film_id = f.film_id
+ORDER BY
+  i.inventory_id;
+
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  film f
+  LEFT JOIN inventory i USING (film_id)
+ORDER BY
+  i.inventory_id;
+
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  film f
+  LEFT JOIN inventory i USING (film_id)
+WHERE
+  i.film_id IS NULL
+ORDER BY
+  f.title;
+
+film_id |         title          | inventory_id
+---------+------------------------+--------------
+      14 | Alice Fantasia         |         null
+      33 | Apollo Teen            |         null
+      36 | Argonauts Town         |         null
+      38 | Ark Ridgemont          |         null
+      41 | Arsenic Independence   |         null
+
+
+--
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  inventory i
+RIGHT JOIN film f
+  ON f.film_id = i.film_id
+ORDER BY
+  f.title;
+
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  inventory i
+RIGHT JOIN film f USING(film_id)
+ORDER BY
+  f.title;
+
+
+SELECT
+  f.film_id,
+  f.title,
+  i.inventory_id
+FROM
+  inventory i
+RIGHT JOIN film f USING(film_id)
+WHERE i.inventory_id IS NULL
+ORDER BY
+  f.title;
+
+film_id |         title          | inventory_id
+---------+------------------------+--------------
+      14 | Alice Fantasia         |         null
+      33 | Apollo Teen            |         null
+      36 | Argonauts Town         |         null
+      38 | Ark Ridgemont          |         null
+      41 | Arsenic Independence   |         null
+
+<<--
+
+
+
+
+--> PostgreSQL FULL OUTER JOIN
+
+galactus_vol=# CREATE TABLE departments (
+  department_id serial PRIMARY KEY,
+  department_name VARCHAR (255) NOT NULL
+);
+CREATE TABLE employees (
+  employee_id serial PRIMARY KEY,
+  employee_name VARCHAR (255),
+  department_id INTEGER
+);
+CREATE TABLE
+CREATE TABLE
+
+galactus_vol=# INSERT INTO departments (department_name)
+VALUES
+  ('Sales'),
+  ('Marketing'),
+  ('HR'),
+  ('IT'),
+  ('Production');
+INSERT INTO employees (employee_name, department_id)
+VALUES
+  ('Bette Nicholson', 1),
+  ('Christian Gable', 1),
+  ('Joe Swank', 2),
+  ('Fred Costner', 3),
+  ('Sandra Kilmer', 4),
+  ('Julia Mcqueen', NULL);
+INSERT 0 5
+INSERT 0 6
+galactus_vol=#
+
+galactus_vol=# SELECT * FROM departments;
+ department_id | department_name
+---------------+-----------------
+             1 | Sales
+             2 | Marketing
+             3 | HR
+             4 | IT
+             5 | Production
+(5 rows)
+
+galactus_vol=# select * from employees;
+ employee_id |  employee_name  | department_id
+-------------+-----------------+---------------
+           1 | Bette Nicholson |             1
+           2 | Christian Gable |             1
+           3 | Joe Swank       |             2
+           4 | Fred Costner    |             3
+           5 | Sandra Kilmer   |             4
+           6 | Julia Mcqueen   |
+(6 rows)
+
+galactus_vol=#
+
+galactus_vol=# SELECT  employee_name,  department_name
+FROM  employees e FULL OUTER JOIN departments d  ON d.department_id = e.department_id;
+  employee_name  | department_name
+-----------------+-----------------
+ Bette Nicholson | Sales
+ Christian Gable | Sales
+ Joe Swank       | Marketing
+ Fred Costner    | HR
+ Sandra Kilmer   | IT
+ Julia Mcqueen   |
+                 | Production
+(7 rows)
+
+galactus_vol=# SELECT  employee_name,  department_name
+FROM  employees e FULL OUTER JOIN departments d  ON d.department_id = e.department_id
+WHERE  employee_name IS NULL;
+ employee_name | department_name
+---------------+-----------------
+               | Production
+(1 row)
+
+galactus_vol=#
+galactus_vol=# SELECT  employee_name,  department_name
+FROM  employees e FULL OUTER JOIN departments d  ON d.department_id = e.department_id
+WHERE  department_name IS NULL;
+ employee_name | department_name
+---------------+-----------------
+ Julia Mcqueen |
+(1 row)
+
+galactus_vol=#
+
+
+
+--> PostgreSQL Cross Join
+
+galactus_vol=# DROP TABLE IF EXISTS T1;
+
+CREATE TABLE
+  T1 (LABEL CHAR(1) PRIMARY KEY);
+
+DROP TABLE IF EXISTS T2;
+
+CREATE TABLE
+  T2 (score INT PRIMARY KEY);
+
+INSERT INTO
+  T1 (LABEL)
+VALUES
+  ('A'),
+  ('B');
+
+INSERT INTO
+  T2 (score)
+VALUES
+  (1),
+  (2),
+  (3);
+NOTICE:  table "t1" does not exist, skipping
+DROP TABLE
+CREATE TABLE
+NOTICE:  table "t2" does not exist, skipping
+DROP TABLE
+CREATE TABLE
+INSERT 0 2
+INSERT 0 3
+galactus_vol=#
+
+galactus_vol=# SELECT * FROM T1 CROSS JOIN T2;
+ label | score
+-------+-------
+ A     |     1
+ B     |     1
+ A     |     2
+ B     |     2
+ A     |     3
+ B     |     3
+(6 rows)
+
+galactus_vol=#
+
+
+--> PostgreSQL NATURAL JOIN
+
+galactus_vol=# CREATE TABLE categories (
+  category_id SERIAL PRIMARY KEY,
+  category_name VARCHAR (255) NOT NULL
+);
+
+CREATE TABLE products (
+  product_id serial PRIMARY KEY,
+  product_name VARCHAR (255) NOT NULL,
+  category_id INT NOT NULL,
+  FOREIGN KEY (category_id) REFERENCES categories (category_id)
+);
+
+INSERT INTO categories (category_name)
+VALUES
+  ('Smartphone'),
+  ('Laptop'),
+  ('Tablet'),
+  ('VR')
+RETURNING *;
+
+INSERT INTO products (product_name, category_id)
+VALUES
+  ('iPhone', 1),
+  ('Samsung Galaxy', 1),
+  ('HP Elite', 2),
+  ('Lenovo Thinkpad', 2),
+  ('iPad', 3),
+  ('Kindle Fire', 3)
+RETURNING *;
+CREATE TABLE
+CREATE TABLE
+ category_id | category_name
+-------------+---------------
+           1 | Smartphone
+           2 | Laptop
+           3 | Tablet
+           4 | VR
+(4 rows)
+
+INSERT 0 4
+ product_id |  product_name   | category_id
+------------+-----------------+-------------
+          1 | iPhone          |           1
+          2 | Samsung Galaxy  |           1
+          3 | HP Elite        |           2
+          4 | Lenovo Thinkpad |           2
+          5 | iPad            |           3
+          6 | Kindle Fire     |           3
+(6 rows)
+
+INSERT 0 6
+galactus_vol=#
+galactus_vol=#
+galactus_vol=# select * from products;
+ product_id |  product_name   | category_id
+------------+-----------------+-------------
+          1 | iPhone          |           1
+          2 | Samsung Galaxy  |           1
+          3 | HP Elite        |           2
+          4 | Lenovo Thinkpad |           2
+          5 | iPad            |           3
+          6 | Kindle Fire     |           3
+(6 rows)
+
+galactus_vol=# select * from categories
+galactus_vol-# ;
+ category_id | category_name
+-------------+---------------
+           1 | Smartphone
+           2 | Laptop
+           3 | Tablet
+           4 | VR
+(4 rows)
+
+galactus_vol=# SELECT * FROM products NATURAL JOIN categories;
+ category_id | product_id |  product_name   | category_name
+-------------+------------+-----------------+---------------
+           1 |          1 | iPhone          | Smartphone
+           1 |          2 | Samsung Galaxy  | Smartphone
+           2 |          3 | HP Elite        | Laptop
+           2 |          4 | Lenovo Thinkpad | Laptop
+           3 |          5 | iPad            | Tablet
+           3 |          6 | Kindle Fire     | Tablet
+(6 rows)
+
+galactus_vol=# SELECT   * FROM products INNER JOIN categories USING (category_id);
+ category_id | product_id |  product_name   | category_name
+-------------+------------+-----------------+---------------
+           1 |          1 | iPhone          | Smartphone
+           1 |          2 | Samsung Galaxy  | Smartphone
+           2 |          3 | HP Elite        | Laptop
+           2 |          4 | Lenovo Thinkpad | Laptop
+           3 |          5 | iPad            | Tablet
+           3 |          6 | Kindle Fire     | Tablet
+(6 rows)
+
+
+
+==> PostgreSQL GROUPING SETS
+
+
+galactus_vol=# SELECT    brand,    segment,    SUM (quantity) FROM    sales GROUP BY    brand,    segment
+UNION ALL
+SELECT    brand,    NULL,    SUM (quantity) FROM    sales GROUP BY    brand
+UNION ALL
+SELECT    NULL,    segment,    SUM (quantity) FROM    sales GROUP BY    segment
+UNION ALL
+SELECT    NULL,    NULL,    SUM (quantity) FROM    sales;
+ brand | segment | sum
+-------+---------+-----
+ XYZ   | Basic   | 300
+ ABC   | Premium | 100
+ ABC   | Basic   | 200
+ XYZ   | Premium | 100
+ ABC   |         | 300
+ XYZ   |         | 400
+       | Basic   | 500
+       | Premium | 200
+       |         | 700
+(9 rows)
+
+galactus_vol=#
+            ^
+galactus_vol=# SELECT    brand,    segment,    SUM (quantity) FROM    sales
+GROUP BY    GROUPING SETS ( (brand, segment), (brand), (segment), () );
+ brand | segment | sum
+-------+---------+-----
+       |         | 700
+ XYZ   | Basic   | 300
+ ABC   | Premium | 100
+ ABC   | Basic   | 200
+ XYZ   | Premium | 100
+ ABC   |         | 300
+ XYZ   |         | 400
+       | Basic   | 500
+       | Premium | 200
+(9 rows)
+
+galactus_vol=#
+galactus_vol=# SELECT
+        GROUPING(brand) grouping_brand,
+        GROUPING(segment) grouping_segment,
+        brand,
+        segment,
+        SUM (quantity)
+FROM
+        sales
+GROUP BY
+        GROUPING SETS (
+                (brand),
+                (segment),
+                ()
+        )
+ORDER BY
+        brand,
+        segment;
+ grouping_brand | grouping_segment | brand | segment | sum
+----------------+------------------+-------+---------+-----
+              0 |                1 | ABC   |         | 300
+              0 |                1 | XYZ   |         | 400
+              1 |                0 |       | Basic   | 500
+              1 |                0 |       | Premium | 200
+              1 |                1 |       |         | 700
+(5 rows)
+
+galactus_vol=#
+
+galactus_vol=# SELECT
+        GROUPING(brand) grouping_brand,
+        GROUPING(segment) grouping_segment,
+        brand,
+        segment,
+        SUM (quantity)
+FROM
+        sales
+GROUP BY
+        GROUPING SETS (
+                (brand),
+                (segment),
+                ()
+        )
+HAVING GROUPING(brand) = 0
+ORDER BY
+        brand,
+        segment;
+ grouping_brand | grouping_segment | brand | segment | sum
+----------------+------------------+-------+---------+-----
+              0 |                1 | ABC   |         | 300
+              0 |                1 | XYZ   |         | 400
+(2 rows)
+
+
+
+==> PostgreSQL ROLLUP
+
+galactus_vol=# DROP TABLE IF EXISTS sales;
+CREATE TABLE sales (
+    brand VARCHAR NOT NULL,
+    segment VARCHAR NOT NULL,
+    quantity INT NOT NULL,
+    PRIMARY KEY (brand, segment)
+);
+
+INSERT INTO sales (brand, segment, quantity)
+VALUES
+    ('ABC', 'Premium', 100),
+    ('ABC', 'Basic', 200),
+    ('XYZ', 'Premium', 100),
+    ('XYZ', 'Basic', 300);
+DROP TABLE
+CREATE TABLE
+INSERT 0 4
+galactus_vol=#
+galactus_vol=# select * from sales;
+ brand | segment | quantity
+-------+---------+----------
+ ABC   | Premium |      100
+ ABC   | Basic   |      200
+ XYZ   | Premium |      100
+ XYZ   | Basic   |      300
+(4 rows)
+
+galactus_vol=#
+galactus_vol=# \d sales
+                     Table "public.sales"
+  Column  |       Type        | Collation | Nullable | Default
+----------+-------------------+-----------+----------+---------
+ brand    | character varying |           | not null |
+ segment  | character varying |           | not null |
+ quantity | integer           |           | not null |
+Indexes:
+    "sales_pkey" PRIMARY KEY, btree (brand, segment)
+
+galactus_vol=#
+galactus_vol=#
+galactus_vol=#
+galactus_vol=# SELECT    brand,    segment,    SUM (quantity)
+FROM    sales GROUP BY    ROLLUP (brand, segment) ORDER BY    brand,    segment;
+ brand | segment | sum
+-------+---------+-----
+ ABC   | Basic   | 200
+ ABC   | Premium | 100
+ ABC   |         | 300
+ XYZ   | Basic   | 300
+ XYZ   | Premium | 100
+ XYZ   |         | 400
+       |         | 700
+(7 rows)
+
+galactus_vol=#
+galactus_vol=#
+galactus_vol=# SELECT    segment,    brand,    SUM (quantity) 
+FROM    sales GROUP BY    ROLLUP (segment, brand) ORDER BY    segment,    brand;
+ segment | brand | sum
+---------+-------+-----
+ Basic   | ABC   | 200
+ Basic   | XYZ   | 300
+ Basic   |       | 500
+ Premium | ABC   | 100
+ Premium | XYZ   | 100
+ Premium |       | 200
+         |       | 700
+(7 rows)
+
+galactus_vol=# SELECT    segment,    brand,    SUM (quantity)
+FROM    sales GROUP BY    segment,    ROLLUP (brand) ORDER BY    segment,    brand;
+ segment | brand | sum
+---------+-------+-----
+ Basic   | ABC   | 200
+ Basic   | XYZ   | 300
+ Basic   |       | 500
+ Premium | ABC   | 100
+ Premium | XYZ   | 100
+ Premium |       | 200
+(6 rows)
+
+galactus_vol=#
+
+
+
+==> PostgreSQL CUBE
+
+galactus_vol=# SELECT    brand,    segment,    SUM (quantity)
+FROM    sales GROUP BY    CUBE (brand, segment) ORDER BY    brand,    segment;
+ brand | segment | sum
+-------+---------+-----
+ ABC   | Basic   | 200
+ ABC   | Premium | 100
+ ABC   |         | 300
+ XYZ   | Basic   | 300
+ XYZ   | Premium | 100
+ XYZ   |         | 400
+       | Basic   | 500
+       | Premium | 200
+       |         | 700
+(9 rows)
+
+galactus_vol=# SELECT    brand,    segment,    SUM (quantity)
+FROM    sales GROUP BY    brand,    CUBE (segment) ORDER BY    brand,    segment;
+ brand | segment | sum
+-------+---------+-----
+ ABC   | Basic   | 200
+ ABC   | Premium | 100
+ ABC   |         | 300
+ XYZ   | Basic   | 300
+ XYZ   | Premium | 100
+ XYZ   |         | 400
+(6 rows)
+
+galactus_vol=#
+
+
+
+
+
+==> PostgreSQL ANY Operator
+
+galactus_vol=# CREATE TABLE employees (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    salary DECIMAL(10, 2) NOT NULL
+);
+CREATE TABLE managers(
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    salary DECIMAL(10, 2) NOT NULL
+);
+INSERT INTO employees (first_name, last_name, salary)
+VALUES
+('Bob', 'Williams', 45000.00),
+('Charlie', 'Davis', 55000.00),
+('David', 'Jones', 50000.00),
+('Emma', 'Brown', 48000.00),
+('Frank', 'Miller', 52000.00),
+('Grace', 'Wilson', 49000.00),
+('Harry', 'Taylor', 53000.00),
+('Ivy', 'Moore', 47000.00),
+('Jack', 'Anderson', 56000.00),
+('Kate', 'Hill',  44000.00),
+('Liam', 'Clark', 59000.00),
+('Mia', 'Parker', 42000.00);
+INSERT INTO managers(first_name, last_name, salary)
+VALUES
+('John', 'Doe',  60000.00),
+('Jane', 'Smith', 55000.00),
+('Alice', 'Johnson',  58000.00);
+CREATE TABLE
+CREATE TABLE
+INSERT 0 12
+INSERT 0 3
+galactus_vol=#
+galactus_vol=#
+
+
+
+==> PostgreSQL ALL Operator
+
+galactus_vol=# SELECT
+  *
+FROM
+  employees
+WHERE
+  salary > ALL(
+    select
+      salary
+    from
+      managers
+  );
+ id | first_name | last_name |  salary
+----+------------+-----------+----------
+ 13 | Bob        | Williams  | 75000.00
+(1 row)
+
+galactus_vol=# SELECT
+  *
+FROM
+  employees
+WHERE
+  salary < ALL(
+    select
+      salary
+    from
+      managers
+  )
+ORDER BY salary DESC;
+ id | first_name | last_name |  salary
+----+------------+-----------+----------
+ 19 | Harry      | Taylor    | 53000.00
+  7 | Harry      | Taylor    | 53000.00
+ 17 | Frank      | Miller    | 52000.00
+  5 | Frank      | Miller    | 52000.00
+ 15 | David      | Jones     | 50000.00
+  3 | David      | Jones     | 50000.00
+ 18 | Grace      | Wilson    | 49000.00
+  6 | Grace      | Wilson    | 49000.00
+ 16 | Emma       | Brown     | 48000.00
+  4 | Emma       | Brown     | 48000.00
+  8 | Ivy        | Moore     | 47000.00
+ 20 | Ivy        | Moore     | 47000.00
+  1 | Bob        | Williams  | 45000.00
+ 10 | Kate       | Hill      | 44000.00
+ 22 | Kate       | Hill      | 44000.00
+ 24 | Mia        | Parker    | 42000.00
+ 12 | Mia        | Parker    | 42000.00
+(17 rows)
+
+
+==> PostgreSQL EXISTS Operator
+
+SELECT
+  EXISTS(
+    SELECT
+      1
+    FROM
+      payment
+    WHERE
+      amount = 0
+  );
+
+exists
+--------
+ t
+(1 row)
+
+
+SELECT
+  first_name,
+  last_name
+FROM
+  customer c
+WHERE
+  EXISTS (
+    SELECT
+      1
+    FROM
+      payment p
+    WHERE
+      p.customer_id = c.customer_id
+      AND amount > 11
+  )
+ORDER BY
+  first_name,
+  last_name;
+
+first_name | last_name
+------------+-----------
+ Karen      | Jackson
+ Kent       | Arsenault
+ Nicholas   | Barfield
+ Rosemary   | Schmidt
+ Tanya      | Gilbert
+ Terrance   | Roush
+ Vanessa    | Sims
+ Victoria   | Gibson
+(8 rows)
+
+
+SELECT
+  first_name,
+  last_name
+FROM
+  customer c
+WHERE
+  NOT EXISTS (
+    SELECT
+      1
+    FROM
+      payment p
+    WHERE
+      p.customer_id = c.customer_id
+      AND amount > 11
+  )
+ORDER BY
+  first_name,
+  last_name;
+
+first_name  |  last_name
+-------------+--------------
+ Aaron       | Selby
+ Adam        | Gooch
+ Adrian      | Clary
+ Agnes       | Bishop
+ Alan        | Kahn
+...
+
+
+SELECT
+  first_name,
+  last_name
+FROM
+  customer
+WHERE
+  EXISTS(
+    SELECT NULL
+  )
+ORDER BY
+  first_name,
+  last_name;
+
+first_name  |  last_name
+-------------+--------------
+ Aaron       | Selby
+ Adam        | Gooch
+ Adrian      | Clary
+ Agnes       | Bishop
+...
+
+
+
+==> PostgreSQL CTE
+
+
+WITH action_films AS (
+  SELECT
+    f.title,
+    f.length
+  FROM
+    film f
+    INNER JOIN film_category fc USING (film_id)
+    INNER JOIN category c USING(category_id)
+  WHERE
+    c.name = 'Action'
+)
+SELECT * FROM action_films;
+
+title          | length
+-------------------------+--------
+ Amadeus Holy            |    113
+ American Circus         |    129
+ Antitrust Tomatoes      |    168
+ Ark Ridgemont           |     68
+...
+
+
+WITH cte_rental AS (
+  SELECT
+    staff_id,
+    COUNT(rental_id) rental_count
+  FROM
+    rental
+  GROUP BY
+    staff_id
+)
+SELECT
+  s.staff_id,
+  first_name,
+  last_name,
+  rental_count
+FROM
+  staff s
+  INNER JOIN cte_rental USING (staff_id);
+
+staff_id | first_name | last_name | rental_count
+----------+------------+-----------+--------------
+        1 | Mike       | Hillyer   |         8040
+        2 | Jon        | Stephens  |         8004
+(2 rows)
+
+
+WITH film_stats AS (
+    -- CTE 1: Calculate film statistics
+    SELECT
+        AVG(rental_rate) AS avg_rental_rate,
+        MAX(length) AS max_length,
+        MIN(length) AS min_length
+    FROM film
+),
+customer_stats AS (
+    -- CTE 2: Calculate customer statistics
+    SELECT
+        COUNT(DISTINCT customer_id) AS total_customers,
+        SUM(amount) AS total_payments
+    FROM payment
+)
+-- Main query using the CTEs
+SELECT
+    ROUND((SELECT avg_rental_rate FROM film_stats), 2) AS avg_film_rental_rate,
+    (SELECT max_length FROM film_stats) AS max_film_length,
+    (SELECT min_length FROM film_stats) AS min_film_length,
+    (SELECT total_customers FROM customer_stats) AS total_customers,
+    (SELECT total_payments FROM customer_stats) AS total_payments;
+
+avg_film_rental_rate | max_film_length | min_film_length | total_customers | total_payments
+----------------------+-----------------+-----------------+-----------------+----------------
+                 2.98 |             185 |              46 |             599 |       61312.04
+(1 row)
+
+
+
+==> PostgreSQL Recursive Query
+
+CREATE TABLE employees (
+  employee_id SERIAL PRIMARY KEY,
+  full_name VARCHAR NOT NULL,
+  manager_id INT
+);
+
+INSERT INTO employees (employee_id, full_name, manager_id)
+VALUES
+  (1, 'Michael North', NULL),
+  (2, 'Megan Berry', 1),
+  (3, 'Sarah Berry', 1),
+  (4, 'Zoe Black', 1),
+  (5, 'Tim James', 1),
+  (6, 'Bella Tucker', 2),
+  (7, 'Ryan Metcalfe', 2),
+  (8, 'Max Mills', 2),
+  (9, 'Benjamin Glover', 2),
+  (10, 'Carolyn Henderson', 3),
+  (11, 'Nicola Kelly', 3),
+  (12, 'Alexandra Climo', 3),
+  (13, 'Dominic King', 3),
+  (14, 'Leonard Gray', 4),
+  (15, 'Eric Rampling', 4),
+  (16, 'Piers Paige', 7),
+  (17, 'Ryan Henderson', 7),
+  (18, 'Frank Tucker', 8),
+  (19, 'Nathan Ferguson', 8),
+  (20, 'Kevin Rampling', 8);
+
+
+WITH RECURSIVE subordinates AS (
+  SELECT
+    employee_id,
+    manager_id,
+    full_name
+  FROM
+    employees
+  WHERE
+    employee_id = 2
+  UNION
+  SELECT
+    e.employee_id,
+    e.manager_id,
+    e.full_name
+  FROM
+    employees e
+    INNER JOIN subordinates s ON s.employee_id = e.manager_id
+)
+SELECT * FROM subordinates;
+
+
+employee_id | manager_id |    full_name
+-------------+------------+-----------------
+           2 |          1 | Megan Berry
+           6 |          2 | Bella Tucker
+           7 |          2 | Ryan Metcalfe
+           8 |          2 | Max Mills
+           9 |          2 | Benjamin Glover
+          16 |          7 | Piers Paige
+          17 |          7 | Ryan Henderson
+          18 |          8 | Frank Tucker
+          19 |          8 | Nathan Ferguson
+          20 |          8 | Kevin Rampling
+(10 rows)
+
+Megan Berry (2)
+ ├── Bella Tucker (6)
+ ├── Ryan Metcalfe (7)
+ │    ├── Piers Paige (16)
+ │    └── Ryan Henderson (17)
+ ├── Max Mills (8)
+ │    ├── Frank Tucker (18)
+ │    └── Nathan Ferguson (19)
+ └── Benjamin Glover (9)
+
+
+
+
+==> PostgreSQL INSERT
+
+
+INSERT INTO table1(column1, column2, …)
+VALUES (value1, value2, …);
+
+INSERT INTO table1(column1, column2, …)
+VALUES (value1, value2, …)
+RETURNING *;
+
+INSERT INTO table1(column1, column2, …)
+VALUES (value1, value2, …)
+RETURNING id;
+
+INSERT INTO table1(column1, column2, …)
+VALUES (value1, value2, …)
+RETURNING output_expression AS output_name;
+
+
+INSERT INTO table_name (column_list)
+VALUES
+    (value_list_1),
+    (value_list_2),
+    ...
+    (value_list_n);
+
+
+INSERT INTO table_name (column_list)
+VALUES
+    (value_list_1),
+    (value_list_2),
+    ...
+    (value_list_n)
+RETURNING * | output_expression;
+
+
+
+==> PostgreSQL UPDATE
+
+UPDATE table_name
+SET column1 = value1,
+    column2 = value2,
+    ...
+WHERE condition;
+
+UPDATE table_name
+SET column1 = value1,
+    column2 = value2,
+    ...
+WHERE condition
+RETURNING * | output_expression AS output_name;
+
+UPDATE courses
+SET price = price * 1.05;
+
+
+galactus_vol=# select * from product;
+ id |          name           | price  | net_price | segment_id
+----+-------------------------+--------+-----------+------------
+  1 | diam                    | 804.89 |           |          1
+  2 | vestibulum aliquet      | 228.55 |           |          3
+  3 | lacinia erat            | 366.45 |           |          2
+  4 | scelerisque quam turpis | 145.33 |           |          3
+  5 | justo lacinia           | 551.77 |           |          2
+  6 | ultrices mattis odio    | 261.58 |           |          3
+  7 | hendrerit               | 519.62 |           |          2
+  8 | in hac habitasse        | 843.31 |           |          1
+  9 | orci eget orci          | 254.18 |           |          3
+ 10 | pellentesque            | 427.78 |           |          2
+ 11 | sit amet nunc           | 936.29 |           |          1
+ 12 | sed vestibulum          | 910.34 |           |          1
+ 13 | turpis eget             | 208.33 |           |          3
+ 14 | cursus vestibulum       | 985.45 |           |          1
+ 15 | orci nullam             | 841.26 |           |          1
+ 16 | est quam pharetra       | 896.38 |           |          1
+ 17 | posuere                 | 575.74 |           |          2
+ 18 | ligula                  | 530.64 |           |          2
+ 19 | convallis               | 892.43 |           |          1
+ 20 | nulla elit ac           | 161.71 |           |          3
+(20 rows)
+
+galactus_vol=# select * from product_segment;
+ id |   segment    | discount
+----+--------------+----------
+  1 | Grand Luxury |     0.05
+  2 | Luxury       |     0.06
+  3 | Mass         |     0.10
+(3 rows)
+
+galactus_vol=# UPDATE
+    product p
+SET
+    net_price = price - price * discount
+FROM
+    product_segment s
+WHERE
+    p.segment_id = s.id;
+UPDATE 20
+galactus_vol=#
+galactus_vol=# select * from product;
+ id |          name           | price  | net_price | segment_id
+----+-------------------------+--------+-----------+------------
+  1 | diam                    | 804.89 |    764.65 |          1
+  2 | vestibulum aliquet      | 228.55 |    205.70 |          3
+  3 | lacinia erat            | 366.45 |    344.46 |          2
+  4 | scelerisque quam turpis | 145.33 |    130.80 |          3
+  5 | justo lacinia           | 551.77 |    518.66 |          2
+  6 | ultrices mattis odio    | 261.58 |    235.42 |          3
+  7 | hendrerit               | 519.62 |    488.44 |          2
+  8 | in hac habitasse        | 843.31 |    801.14 |          1
+  9 | orci eget orci          | 254.18 |    228.76 |          3
+ 10 | pellentesque            | 427.78 |    402.11 |          2
+ 11 | sit amet nunc           | 936.29 |    889.48 |          1
+ 12 | sed vestibulum          | 910.34 |    864.82 |          1
+ 13 | turpis eget             | 208.33 |    187.50 |          3
+ 14 | cursus vestibulum       | 985.45 |    936.18 |          1
+ 15 | orci nullam             | 841.26 |    799.20 |          1
+ 16 | est quam pharetra       | 896.38 |    851.56 |          1
+ 17 | posuere                 | 575.74 |    541.20 |          2
+ 18 | ligula                  | 530.64 |    498.80 |          2
+ 19 | convallis               | 892.43 |    847.81 |          1
+ 20 | nulla elit ac           | 161.71 |    145.54 |          3
+(20 rows)
+
+galactus_vol=#
+
+
+
+==> PostgreSQL DELETE
+
+DELETE FROM todos
+WHERE completed = true
+RETURNING *;
+
+DELETE FROM todos;
+
+
+DELETE FROM table1
+USING table2
+WHERE condition
+RETURNING returning_columns;
+
+DELETE FROM member
+USING denylist
+WHERE member.phone = denylist.phone;
+
+
+DELETE FROM member
+WHERE phone IN (
+    SELECT
+      phone
+    FROM
+      denylist
+);
+
+
+===> PostgreSQL UPSERT using INSERT ON CONFLICT Statement
+
+INSERT INTO table_name (column1, column2, ...)
+VALUES (value1, value2, ...)
+ON CONFLICT (conflict_column)
+DO NOTHING | DO UPDATE SET column1 = value1, column2 = value2, ...;
+
+galactus_vol=# select * from inventory
+galactus_vol-# ;
+ id | name | price | quantity
+----+------+-------+----------
+  1 | A    | 15.99 |      100
+  2 | B    | 25.49 |       50
+  3 | C    | 19.95 |       75
+(3 rows)
+
+galactus_vol=# INSERT INTO inventory (id, name, price, quantity)
+VALUES (1, 'A', 16.99, 120)
+ON CONFLICT(id)
+DO UPDATE SET
+  price = EXCLUDED.price,
+  quantity = EXCLUDED.quantity;
+INSERT 0 1
+galactus_vol=#
+galactus_vol=# select * from inventory;
+ id | name | price | quantity
+----+------+-------+----------
+  2 | B    | 25.49 |       50
+  3 | C    | 19.95 |       75
+  1 | A    | 16.99 |      120
+(3 rows)
+
+galactus_vol=# INSERT INTO inventory (id, name, price, quantity)
+VALUES (4, 'D', 29.99, 20)
+ON CONFLICT(id)
+DO UPDATE SET
+  price = EXCLUDED.price,
+  quantity = EXCLUDED.quantity;
+INSERT 0 1
+galactus_vol=#
+galactus_vol=#  select * from inventory;
+ id | name | price | quantity
+----+------+-------+----------
+  2 | B    | 25.49 |       50
+  3 | C    | 19.95 |       75
+  1 | A    | 16.99 |      120
+  4 | D    | 29.99 |       20
+(4 rows)
+
+galactus_vol=#
+
+
+
+

@@ -1,0 +1,149 @@
+==> PostgreSQL MERGE Statement
+
+MERGE INTO target_table
+USING source_table
+ON match_condition
+WHEN MATCHED AND condition THEN
+    UPDATE SET column1 = value1, column2 = value2
+WHEN MATCHED AND NOT condition THEN
+    DELETE
+WHEN NOT MATCHED THEN
+    INSERT (column1, column2) VALUES (value1, value2)
+RETURNING merge_action(), target_table.*;
+
+--
+galactus_vol=# select * from products;
+ product_id |   name   | price  | stock | status |        last_updated
+------------+----------+--------+-------+--------+----------------------------
+          1 | Laptop   | 999.99 |    50 | active | 2025-09-16 06:52:00.131612
+          2 | Keyboard |  79.99 |   100 | active | 2025-09-16 06:52:00.131612
+          3 | Mouse    |  29.99 |   200 | active | 2025-09-16 06:52:00.131612
+(3 rows)
+
+galactus_vol=#
+galactus_vol=# select * from product_updates ;
+    name    |  price  | stock |    status
+------------+---------+-------+--------------
+ Laptop     | 1099.99 |    75 | active
+ Monitor    |  299.99 |    30 | active
+ Keyboard   |         |     0 | discontinued
+ Headphones |   89.99 |    50 | active
+(4 rows)
+
+galactus_vol=# MERGE INTO products p
+USING product_updates u
+ON p.name = u.name
+WHEN MATCHED AND u.status = 'discontinued' THEN
+    DELETE
+WHEN MATCHED AND u.status = 'active' THEN
+    UPDATE SET
+        price = COALESCE(u.price, p.price),
+        stock = u.stock,
+        status = u.status,
+        last_updated = CURRENT_TIMESTAMP
+WHEN NOT MATCHED AND u.status = 'active' THEN
+    INSERT (name, price, stock, status)
+    VALUES (u.name, u.price, u.stock, u.status)
+RETURNING
+    merge_action() as action,
+    p.product_id,
+    p.name,
+    p.price,
+    p.stock,
+    p.status,
+    p.last_updated;
+ action | product_id |    name    |  price  | stock | status |        last_updated
+--------+------------+------------+---------+-------+--------+----------------------------
+ UPDATE |          1 | Laptop     | 1099.99 |    75 | active | 2025-09-16 06:52:44.680533
+ INSERT |          4 | Monitor    |  299.99 |    30 | active | 2025-09-16 06:52:44.680533
+ DELETE |          2 | Keyboard   |   79.99 |   100 | active | 2025-09-16 06:52:00.131612
+ INSERT |          5 | Headphones |   89.99 |    50 | active | 2025-09-16 06:52:44.680533
+(4 rows)
+
+MERGE 4
+galactus_vol=# select * from products;
+ product_id |    name    |  price  | stock | status |        last_updated
+------------+------------+---------+-------+--------+----------------------------
+          3 | Mouse      |   29.99 |   200 | active | 2025-09-16 06:52:00.131612
+          1 | Laptop     | 1099.99 |    75 | active | 2025-09-16 06:52:44.680533
+          4 | Monitor    |  299.99 |    30 | active | 2025-09-16 06:52:44.680533
+          5 | Headphones |   89.99 |    50 | active | 2025-09-16 06:52:44.680533
+(4 rows)
+
+galactus_vol=#
+
+--
+galactus_vol=# SELECT
+        name,
+        price,
+        stock,
+        status,
+        CASE
+            WHEN price IS NULL AND status = 'discontinued' THEN 'DELETE'
+            WHEN stock = 0 THEN 'OUT_OF_STOCK'
+            ELSE status
+        END as action_type
+    FROM product_updates
+galactus_vol-# ;
+    name    |  price  | stock |    status    | action_type
+------------+---------+-------+--------------+-------------
+ Laptop     | 1099.99 |    75 | active       | active
+ Monitor    |  299.99 |    30 | active       | active
+ Keyboard   |         |     0 | discontinued | DELETE
+ Headphones |   89.99 |    50 | active       | active
+(4 rows)
+
+galactus_vol=#
+galactus_vol=# MERGE INTO products p
+USING (
+    SELECT
+        name,
+        price,
+        stock,
+        status,
+        CASE
+            WHEN price IS NULL AND status = 'discontinued' THEN 'DELETE'
+            WHEN stock = 0 THEN 'OUT_OF_STOCK'
+            ELSE status
+        END as action_type
+    FROM product_updates
+) u
+ON p.name = u.name
+WHEN MATCHED AND u.action_type = 'DELETE' THEN
+    DELETE
+WHEN MATCHED AND u.action_type = 'OUT_OF_STOCK' THEN
+    UPDATE SET
+        status = 'inactive',
+        stock = 0,
+        last_updated = CURRENT_TIMESTAMP
+WHEN MATCHED THEN
+    UPDATE SET
+        price = COALESCE(u.price, p.price),
+        stock = u.stock,
+        status = u.status,
+        last_updated = CURRENT_TIMESTAMP
+WHEN NOT MATCHED AND u.action_type != 'DELETE' THEN
+    INSERT (name, price, stock, status)
+    VALUES (u.name, u.price, u.stock, u.status)
+RETURNING
+    merge_action() as action,
+    p.*,
+    u.action_type;
+ action | product_id |    name    |  price  | stock | status |        last_updated        | action_type
+--------+------------+------------+---------+-------+--------+----------------------------+-------------
+ UPDATE |          1 | Laptop     | 1099.99 |    75 | active | 2025-09-16 07:00:10.066679 | active
+ UPDATE |          4 | Monitor    |  299.99 |    30 | active | 2025-09-16 07:00:10.066679 | active
+ UPDATE |          5 | Headphones |   89.99 |    50 | active | 2025-09-16 07:00:10.066679 | active
+(3 rows)
+
+MERGE 3
+galactus_vol=#  select * from products;
+ product_id |    name    |  price  | stock | status |        last_updated
+------------+------------+---------+-------+--------+----------------------------
+          3 | Mouse      |   29.99 |   200 | active | 2025-09-16 06:52:00.131612
+          1 | Laptop     | 1099.99 |    75 | active | 2025-09-16 07:00:10.066679
+          4 | Monitor    |  299.99 |    30 | active | 2025-09-16 07:00:10.066679
+          5 | Headphones |   89.99 |    50 | active | 2025-09-16 07:00:10.066679
+(4 rows)
+
+galactus_vol=#

@@ -1,0 +1,246 @@
+###== With tablespace outside Data Directory
+== Plan restoration
+pg_basebackup -h localhost -U postgres -D /backup/bkp -Fp -Xs -P -v \
+-T /var/lib/pgsql/17/app_tablespc=/backup/bkp/app_tablespc 
+
+pg_ctl start -D /var/lib/pgsql/17/backups/backup_restore
+
+
+== Tar restoration
+pg_basebackup -h localhost -U postgres -D /backup/bkp/ -Ft -Xs -P -v 
+
+cd /backup/bkp/
+tar -xvf base.tar -C /backup/bkp/
+
+cat tablespace_map.old
+32889 /var/lib/pgsql/17/app_tablespc
+
+mv /var/lib/pgsql/17/app_tablespc/* /backup/archive_old
+
+tar -xvf 32889.tar -C /var/lib/pgsql/17/app_tablespc
+
+cd /backup/bkp/pg_tblspc
+ln -s /var/lib/pgsql/17/app_tablespc /backup/bkp/pg_tblspc/32889
+chmod 0700 -R /backup/bkp/
+
+cd /backup/bkp/
+mv pg_wal pg_wal_old
+tar -xf pg_wal.tar -C /backup/bkp/pg_wal
+
+
+pg_ctl start -D /backup/bkp/
+
+
+OR ---
+[postgres@pg-server-01 bkp]$ tar -xf 32889.tar -C ../app_tbl/
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 backup]$ mkdir app_tbl
+[postgres@pg-server-01 backup]$ cd bkp/
+[postgres@pg-server-01 bkp]$ cd pg_tblspc
+[postgres@pg-server-01 pg_tblspc]$ ll
+total 0
+lrwxrwxrwx 1 postgres postgres 30 May 20 03:18 32889 -> /var/lib/pgsql/17/app_tablespc
+[postgres@pg-server-01 pg_tblspc]$ unlink 32889
+[postgres@pg-server-01 pg_tblspc]$ cat ../tablespace_map.old
+32889 /var/lib/pgsql/17/app_tablespc
+[postgres@pg-server-01 pg_tblspc]$ pwd
+/backup/bkp/pg_tblspc
+[postgres@pg-server-01 pg_tblspc]$ ln -s /backup/app_tbl/ /backup/bkp/pg_tblspc/32889
+[postgres@pg-server-01 pg_tblspc]$
+[postgres@pg-server-01 pg_tblspc]$ ll
+total 0
+lrwxrwxrwx 1 postgres postgres 16 May 20 05:59 32889 -> /backup/app_tbl/
+[postgres@pg-server-01 pg_tblspc]$
+[postgres@pg-server-01 bkp]$ pg_ctl start -D /backup/bkp
+waiting for server to start....2026-05-20 06:00:17.534 EDT [13391] LOG:  redirecting log output to logging collector process
+2026-05-20 06:00:17.534 EDT [13391] HINT:  Future log output will appear in directory "log".
+ done
+server started
+[postgres@pg-server-01 bkp]$
+
+
+
+
+###== PITR
+pg_basebackup -h localhost -U postgres -D /backup/bkp2 -Fp -Xs -P -v \
+-T /backup/app_tbl=/backup/bkp2/app_tablespc 
+
+
+
+postgres=# select * from tep;
+ id |             creaeted
+----+----------------------------------
+  1 | 2026-05-20 18:56:47.310054+05:30
+  1 | 2026-05-20 18:56:48.855703+05:30
+  1 | 2026-05-20 18:56:50.398061+05:30
+(3 rows)
+
+postgres=#
+postgres=# insert into tep(id) values(2);
+INSERT 0 1
+postgres=# insert into tep(id) values(2);
+INSERT 0 1
+postgres=# insert into tep(id) values(2);
+INSERT 0 1
+postgres=# select * from tep;
+ id |             creaeted
+----+----------------------------------
+  1 | 2026-05-20 18:56:47.310054+05:30
+  1 | 2026-05-20 18:56:48.855703+05:30
+  1 | 2026-05-20 18:56:50.398061+05:30
+  2 | 2026-05-20 19:23:33.825033+05:30
+  2 | 2026-05-20 19:23:34.645037+05:30
+  2 | 2026-05-20 19:23:35.269094+05:30
+(6 rows)
+
+postgres=#
+postgres=#
+postgres=# exit
+[postgres@pg-server-01 bkp]$ psql -p5433
+psql (17.9)
+Type "help" for help.
+
+postgres=#
+postgres=# drop table tep;
+DROP TABLE
+postgres=#
+postgres=# select * from tep;
+ERROR:  relation "tep" does not exist
+LINE 1: select * from tep;
+                      ^
+postgres=#
+postgres=#
+postgres=# select now();
+               now
+----------------------------------
+ 2026-05-20 19:24:17.680707+05:30
+(1 row)
+
+
+
+
+
+
+[postgres@pg-server-01 bkp]$ cp -r ../bkp2/* ./
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ vi postgresql.conf
+[postgres@pg-server-01 bkp]$ cat postgresql.conf | grep recovery
+# - Prefetching during recovery -
+#recovery_prefetch = try        # prefetch pages referenced in the WAL?
+# These are only used in recovery mode.
+#recovery_end_command = ''      # command to execute at completion of recovery
+# Set these only when performing a targeted recovery.
+#recovery_target = ''           # 'immediate' to end recovery as soon as a
+#recovery_target_name = ''      # the named restore point to which recovery will proceed
+recovery_target_time = '2026-05-20 19:23:36'    # the time stamp up to which recovery will proceed
+#recovery_target_xid = ''       # the transaction ID up to which recovery will proceed
+#recovery_target_lsn = ''       # the WAL LSN up to which recovery will proceed
+#recovery_target_inclusive = on # Specifies whether to stop:
+                                # just after the specified recovery target (on)
+                                # just before the recovery target (off)
+#recovery_target_timeline = 'latest'    # 'current', 'latest', or timeline ID
+#recovery_target_action = 'pause'       # 'pause', 'promote', 'shutdown'
+#hot_standby = on                       # "off" disallows queries during recovery
+#recovery_min_apply_delay = 0           # minimum delay for applying changes during recovery
+#log_recovery_conflict_waits = off      # log standby recovery conflict waits
+#recovery_init_sync_method = fsync      # fsync, syncfs (Linux 5.8+)
+[postgres@pg-server-01 bkp]$ cat postgresql.conf | grep restore
+restore_command = 'cp "/backup/archivedir/%f" "%p"'             # command to use to restore an archived WAL file
+                                # placeholders: %p = path of file to restore
+#recovery_target_name = ''      # the named restore point to which recovery will proceed
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ touch recovery.signal
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ ls -ltr recovery.signal
+-rw-r--r-- 1 postgres postgres 0 May 20 10:17 recovery.signal
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ pg_ctl start -D /backup/bkp
+waiting for server to start....2026-05-20 10:17:44.680 EDT [18354] LOG:  redirecting log output to logging collector process
+2026-05-20 10:17:44.680 EDT [18354] HINT:  Future log output will appear in directory "log".
+..... done
+server started
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ psql -p 5433
+psql (17.9)
+Type "help" for help.
+
+postgres=# select * from tep;
+
+^CCancel request sent
+ERROR:  canceling statement due to user request
+postgres=#
+postgres=#
+postgres=# select * from tep;
+^CCancel request sent
+ERROR:  canceling statement due to user request
+postgres=#
+postgres=#
+postgres=# select pg_is_in_recovery();
+ pg_is_in_recovery
+-------------------
+ t
+(1 row)
+
+postgres=# select pg_last_wal_replay_lsn();
+ pg_last_wal_replay_lsn
+------------------------
+ 0/F7006DD8
+(1 row)
+
+postgres=#
+
+
+
+[postgres@pg-server-01 log]$ tail postgresql-Wed.log
+2026-05-20 10:17:50.600 EDT [18358] LOG:  completed backup recovery with redo LSN 0/F5000028 and end LSN 0/F5000158
+2026-05-20 10:17:50.601 EDT [18358] LOG:  consistent recovery state reached at 0/F5000158
+2026-05-20 10:17:50.601 EDT [18358] LOG:  recovery stopping before commit of transaction 874, time 2026-05-20 19:23:57.983152+05:30
+2026-05-20 10:17:50.601 EDT [18358] LOG:  pausing at the end of recovery
+2026-05-20 10:17:50.601 EDT [18358] HINT:  Execute pg_wal_replay_resume() to promote.
+2026-05-20 10:17:50.601 EDT [18354] LOG:  database system is ready to accept read-only connections
+2026-05-20 10:18:21.276 EDT [18369] ERROR:  canceling statement due to user request
+2026-05-20 10:18:21.276 EDT [18369] STATEMENT:  select * from tep;
+2026-05-20 10:18:24.996 EDT [18369] ERROR:  canceling statement due to user request
+2026-05-20 10:18:24.996 EDT [18369] STATEMENT:  select * from tep;
+[postgres@pg-server-01 log]$
+[postgres@pg-server-01 log]$
+[postgres@pg-server-01 log]$ psql -p 5433
+psql (17.9)
+Type "help" for help.
+
+postgres=#
+postgres=#
+postgres=# select pg_promote();
+ pg_promote
+------------
+ t
+(1 row)
+
+postgres=#
+postgres=# select pg_is_in_recovery();
+ pg_is_in_recovery
+-------------------
+ f
+(1 row)
+
+postgres=# select * from tep
+postgres-# ;
+ id |             creaeted
+----+----------------------------------
+  1 | 2026-05-20 18:56:47.310054+05:30
+  1 | 2026-05-20 18:56:48.855703+05:30
+  1 | 2026-05-20 18:56:50.398061+05:30
+  2 | 2026-05-20 19:23:33.825033+05:30
+  2 | 2026-05-20 19:23:34.645037+05:30
+  2 | 2026-05-20 19:23:35.269094+05:30
+(6 rows)
+
+postgres=#
+
+
+[postgres@pg-server-01 bkp]$
+[postgres@pg-server-01 bkp]$ ls -ltr recovery.signal
+ls: cannot access 'recovery.signal': No such file or directory
+[postgres@pg-server-01 bkp]$

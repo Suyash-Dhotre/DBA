@@ -1,0 +1,427 @@
+== basic Parameters
+listen_addresses = '*'          # what IP address(es) to listen on; --
+port = 5432                             # (change requires restart) --
+max_connections = 100                   # (change requires restart)
+superuser_reserved_connections = 3      # (change requires restart)
+
+
+shared_buffers = 128MB                  # min 128kB
+dynamic_shared_memory_type = posix      # the default is usually the first option
+
+
+wal_level = replica                     # minimal, replica, or logical --
+fsync = on                              # flush data to disk for crash safety
+
+max_wal_size = 1GB
+min_wal_size = 80MB
+
+archive_mode = on              # enables archiving; off, on, or always --
+archive_command = 'test ! -f /var/lib/pgsql/17/data/archivedir/%f && cp %p /var/lib/pgsql/17/data/archivedir/%f'                # command to use to archive a WAL file --
+archive_timeout = 15            # force a WAL file switch after this
+max_wal_senders = 10            # max number of walsender processes --
+max_replication_slots = 10      # max number of replication slots --
+wal_keep_size = 100             # in megabytes; 0 disables --
+
+
+log_destination = 'stderr'              # Valid values are combinations of
+logging_collector = on                  # Enable capturing of stderr, jsonlog,
+log_directory = 'log'                   # directory where log files are written,
+log_filename = 'postgresql-%a.log'      # log file name pattern,
+log_rotation_age = 1d                   # Automatic rotation of logfiles will
+log_rotation_size = 0                   # Automatic rotation of logfiles will
+log_truncate_on_rotation = on           # If on, an existing log file with the
+log_line_prefix = '%m [%p] '            # special values:
+
+log_timezone = 'America/New_York'
+datestyle = 'iso, mdy'
+timezone = 'America/New_York'
+lc_messages = 'en_US.UTF-8'             # locale for system error message
+lc_monetary = 'en_US.UTF-8'             # locale for monetary formatting
+lc_numeric = 'en_US.UTF-8'              # locale for number formatting
+lc_time = 'en_US.UTF-8'                 # locale for time formatting
+
+archive_cleanup_command = 'pg_archivecleanup /var/lib/pgsql/17/archive %r'
+                                        # errors at the given level
+
+default_text_search_config = 'pg_catalog.english'
+==
+
+
+
+
+==
+sudo systemctl restart postgresql-17.service
+sudo  journalctl -u postgresql-17.service -n 50 --no-pager
+==
+
+
+##==Wal directory and wal files lsn and switch over
+
+SHOW checkpoint_timeout;
+SELECT pg_switch_wal(); 
+
+
+$PGDATA/pg_wal
+
+postgres=# select pg_switch_wal();
+ pg_switch_wal
+---------------
+ 0/DE000078
+(1 row)
+
+postgres=# select pg_current_wal_lsn();
+ pg_current_wal_lsn
+--------------------
+ 0/DF000060
+(1 row)
+
+postgres=# SELECT pg_walfile_name(pg_current_wal_lsn());
+     pg_walfile_name
+--------------------------
+ 0000000500000000000000DF
+(1 row)
+
+postgres=#
+==
+
+
+
+##== Achives
+wal_level = replica/logical
+archive mode ='on'
+keep_wal_size =
+archive_command = ''
+archive_cleanup_command = 'pg_archivecleanup /var/lib/pgsql/17/archive %r'
+
+-- Warning: Will not remove required wal for recovery/standby but PITR can effect use barman / pgBackRest / WAL-G
+
+postgres=# SELECT * FROM pg_stat_archiver;
+ archived_count |    last_archived_wal     |        last_archived_time        | failed_count | last_failed_wal | last_failed_time |           stats_reset
+----------------+--------------------------+----------------------------------+--------------+-----------------+------------------+----------------------------------
+             58 | 0000000500000000000000DE | 2026-05-20 12:04:42.187188+05:30 |            0 |                 |                  | 2026-05-20 02:15:10.422793+05:30
+(1 row)
+
+
+==
+
+== Read archive
+pg_waldump $archive_command/0000000100000000000000A1
+pg_waldump $wal_log/0000000100000000000000A1
+==
+
+== Manual switch
+
+==
+
+
+Write → pg_wal
+   ↓
+Checkpoint happens
+   ↓
+Archive (optional)
+   ↓
+Replication (optional)
+   ↓
+Recycle or delete old WAL
+
+
+##== stratup process
+[postgres@pg-server-02 data]$ sudo systemctl status postgresql-17.service
+[sudo] password for postgres:
+● postgresql-17.service - PostgreSQL 17 database server
+   Loaded: loaded (/usr/lib/systemd/system/postgresql-17.service; enabled; vendor preset: di>
+  Drop-In: /etc/systemd/system/postgresql-17.service.d
+           └─override.conf
+   Active: active (running) since Sat 2026-05-02 05:17:34 EDT; 15min ago
+     Docs: https://www.postgresql.org/docs/17/static/
+  Process: 1248 ExecStartPre=/usr/pgsql-17/bin/postgresql-17-check-db-dir ${PGDATA} (code=ex>
+ Main PID: 1274 (postgres)
+    Tasks: 8 (limit: 10477)
+   Memory: 22.0M
+   CGroup: /system.slice/postgresql-17.service
+           ├─1274 /usr/pgsql-17/bin/postgres -D /var/lib/pgsql/17/data/
+           ├─1296 postgres: logger
+           ├─1319 postgres: checkpointer
+           ├─1320 postgres: background writer
+           ├─1330 postgres: walwriter
+           ├─1331 postgres: autovacuum launcher
+           ├─1332 postgres: archiver last was 00000001000000000000000B
+           └─1333 postgres: logical replication launcher
+
+May 02 05:17:34 localhost.localdomain systemd[1]: Starting PostgreSQL 17 database server...
+May 02 05:17:34 localhost.localdomain postgres[1274]: 2026-05-02 05:17:34.515 EDT [1274] LOG>
+May 02 05:17:34 localhost.localdomain postgres[1274]: 2026-05-02 05:17:34.515 EDT [1274] HIN>
+May 02 05:17:34 localhost.localdomain systemd[1]: Started PostgreSQL 17 database server.
+
+
+
+
+### Time stamp :
+
+Both now() / CURRENT_TIMESTAMP outputs remain SAME -- show transaction start time
+clock_timestamp() changes
+
+postgres=#
+postgres=# Begin;
+BEGIN
+postgres=*# SELECT CURRENT_TIMESTAMP;
+       current_timestamp
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*# SELECT pg_sleep(5);
+ pg_sleep
+----------
+
+(1 row)
+
+postgres=*# SELECT CURRENT_TIMESTAMP;
+       current_timestamp
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*# SELECT clock_timestamp();
+        clock_timestamp
+-------------------------------
+ 2026-05-19 20:54:19.890936+00
+(1 row)
+
+postgres=*# select now();
+              now
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*# SELECT pg_sleep(5);
+ pg_sleep
+----------
+
+(1 row)
+
+postgres=*# select now();
+              now
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*#
+postgres=*# SELECT clock_timestamp();
+        clock_timestamp
+-------------------------------
+ 2026-05-19 20:54:51.381168+00
+(1 row)
+
+postgres=*#
+postgres=*#
+postgres=*# select now();
+              now
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*# SELECT CURRENT_TIMESTAMP;
+       current_timestamp
+-------------------------------
+ 2026-05-19 20:53:58.210113+00
+(1 row)
+
+postgres=*# commit;
+COMMIT
+postgres=#
+
+
+
+
+== Time zone table creation 
+
+postgres=# create table us(id int, created timestamp default now());
+CREATE TABLE
+postgres=# insert into us(id) values(1);
+INSERT 0 1
+postgres=# insert into us(id) values(1);
+INSERT 0 1
+postgres=# insert into us(id) values(1);
+INSERT 0 1
+postgres=# insert into us(id) values(1);
+INSERT 0 1
+postgres=# select * from us;
+ id |          created
+----+----------------------------
+  1 | 2026-05-19 21:00:32.171519
+  1 | 2026-05-19 21:00:34.447027
+  1 | 2026-05-19 21:00:36.396808
+  1 | 2026-05-19 21:00:38.41488
+(4 rows)
+
+postgres=# create table ustz(id int, created timestamptz defualt now());
+ERROR:  syntax error at or near "defualt"
+LINE 1: create table ustz(id int, created timestamptz defualt now())...
+                                                      ^
+postgres=# create table ustz(id int, created timestamptz default now());
+CREATE TABLE
+postgres=# insert into ustz(id) values(1);
+INSERT 0 1
+postgres=# insert into ustz(id) values(1);
+INSERT 0 1
+postgres=# insert into ustz(id) values(1);
+INSERT 0 1
+postgres=# select * from ustz;
+ id |            created
+----+-------------------------------
+  1 | 2026-05-19 21:01:18.354604+00
+  1 | 2026-05-19 21:01:19.88366+00
+  1 | 2026-05-19 21:01:21.628828+00
+(3 rows)
+
+postgres=# show timezone;
+ TimeZone
+----------
+ UTC
+(1 row)
+
+postgres=# alter system set timezone='Asia/Kolkata';
+ALTER SYSTEM
+
+postgres=# select pg_reload_conf();
+ pg_reload_conf
+----------------
+ t
+(1 row)
+
+postgres=# show timezone;
+   TimeZone
+--------------
+ Asia/Kolkata
+(1 row)
+
+postgres=# select * from us;
+ id |          created
+----+----------------------------
+  1 | 2026-05-19 21:00:32.171519
+  1 | 2026-05-19 21:00:34.447027
+  1 | 2026-05-19 21:00:36.396808
+  1 | 2026-05-19 21:00:38.41488
+(4 rows)
+
+postgres=# select * from ustz;
+ id |             created
+----+----------------------------------
+  1 | 2026-05-20 02:31:18.354604+05:30
+  1 | 2026-05-20 02:31:19.88366+05:30
+  1 | 2026-05-20 02:31:21.628828+05:30
+(3 rows)
+
+postgres=#
+
+
+
+
+
+
+#####=== Tablespace
+
+[postgres@pg-server-01 app_tablespc]$ pwd
+/var/lib/pgsql/17/app_tablespc
+[postgres@pg-server-01 app_tablespc]$ psql
+psql (17.9)
+Type "help" for help.
+
+postgres=#
+postgres=# create tablespace app_tsp location '/var/lib/pgsql/17/app_tablespc';
+CREATE TABLESPACE
+postgres=# \db+ app_tsp
+                                            List of tablespaces
+  Name   |  Owner   |            Location            | Access privileges | Options |  Size   | Description
+---------+----------+--------------------------------+-------------------+---------+---------+-------------
+ app_tsp | postgres | /var/lib/pgsql/17/app_tablespc |                   |         | 0 bytes |
+(1 row)
+
+postgres=#
+postgres=# exit
+[postgres@pg-server-01 app_tablespc]$
+[postgres@pg-server-01 app_tablespc]$ cd ../data/pg_tblspc/
+[postgres@pg-server-01 pg_tblspc]$ ll
+total 0
+lrwxrwxrwx 1 postgres postgres 30 May 19 17:11 32889 -> /var/lib/pgsql/17/app_tablespc
+[postgres@pg-server-01 pg_tblspc]$ psql
+postgres=# \db
+                  List of tablespaces
+    Name    |  Owner   |            Location
+------------+----------+--------------------------------
+ app_tsp    | postgres | /var/lib/pgsql/17/app_tablespc
+ pg_default | postgres |
+ pg_global  | postgres |
+(3 rows)
+
+postgres=# create database app_db tablespace app_tsp ;
+CREATE DATABASE
+postgres=#
+postgres=# \c app_db
+You are now connected to database "app_db" as user "postgres".
+app_db=# create table t ( id int , creaeted timestamptz default now());
+CREATE TABLE
+app_db=#
+app_db=# insert into t(id) values(1), (2), (3);
+INSERT 0 3
+app_db=# select * from t;
+ id |             creaeted
+----+----------------------------------
+  1 | 2026-05-20 02:54:19.578852+05:30
+  2 | 2026-05-20 02:54:19.578852+05:30
+  3 | 2026-05-20 02:54:19.578852+05:30
+(3 rows)
+
+app_db=# select * from pg_class where relname='t';
+  oid  | relname | relnamespace | reltype | reloftype | relowner | relam | relfilenode | reltablespace | relpages | reltuples | relallvisible | reltoastrelid | relhasindex | relisshared | r
+elpersistence | relkind | relnatts | relchecks | relhasrules | relhastriggers | relhassubclass | relrowsecurity | relforcerowsecurity | relispopulated | relreplident | relispartition | relr
+ewrite | relfrozenxid | relminmxid | relacl | reloptions | relpartbound
+-------+---------+--------------+---------+-----------+----------+-------+-------------+---------------+----------+-----------+---------------+---------------+-------------+-------------+--
+--------------+---------+----------+-----------+-------------+----------------+----------------+----------------+---------------------+----------------+--------------+----------------+-----
+-------+--------------+------------+--------+------------+--------------
+ 32891 | t       |         2200 |   32893 |         0 |       10 |     2 |       32891 |             0 |        0 |        -1 |             0 |             0 | f           | f           | p
+              | r       |        2 |         0 | f           | f              | f              | f              | f                   | t              | d            | f              |
+     0 |          865 |          1 |        |            |
+(1 row)
+
+app_db=#
+app_db=# \dn+
+                                       List of schemas
+  Name  |       Owner       |           Access privileges            |      Description
+--------+-------------------+----------------------------------------+------------------------
+ public | pg_database_owner | pg_database_owner=UC/pg_database_owner+| standard public schema
+        |                   | =U/pg_database_owner                   |
+(1 row)
+
+app_db=# select * from pg_namespace;
+  oid  |      nspname       | nspowner |                            nspacl
+-------+--------------------+----------+---------------------------------------------------------------
+    99 | pg_toast           |       10 |
+    11 | pg_catalog         |       10 | {postgres=UC/postgres,=U/postgres}
+  2200 | public             |     6171 | {pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}
+ 14137 | information_schema |       10 | {postgres=UC/postgres,=U/postgres}
+(4 rows)
+
+app_db=# select oid, relnamespace,reltype, relfilenode, reltablespace , relfrozenxid,relminmxid from  pg_class where relname='t';
+  oid  | relnamespace | reltype | relfilenode | reltablespace | relfrozenxid | relminmxid
+-------+--------------+---------+-------------+---------------+--------------+------------
+ 32891 |         2200 |   32893 |       32891 |             0 |          865 |          1
+(1 row)
+
+app_db=# select * from pg_database where datname = 'app_db';
+  oid  | datname | datdba | encoding | datlocprovider | datistemplate | datallowconn | dathasloginevt | datconnlimit | datfrozenxid | datminmxid | dattablespace | datcollate  |  datctype   | datlocale | daticurules | datcollversion | datacl
+-------+---------+--------+----------+----------------+---------------+--------------+----------------+--------------+--------------+------------+---------------+-------------+-------------+-----------+-------------+----------------+--------
+ 32890 | app_db  |     10 |        6 | c              | f             | t            | f              |           -1 |          730 |          1 |         32889 | en_US.UTF-8 | en_US.UTF-8 |           |             | 2.28           |
+(1 row)
+
+app_db=# exit
+
+
+[postgres@pg-server-01 32890]$ ll| grep 32891
+-rw------- 1 postgres postgres   8192 May 19 17:26 32891
+[postgres@pg-server-01 32890]$ pwd
+/var/lib/pgsql/17/app_tablespc/PG_17_202406281/32890
+[postgres@pg-server-01 32890]$
+
+
